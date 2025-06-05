@@ -1,0 +1,87 @@
+CheckList for things to do
+Demand ----
+CNN -
+XGB - 
+Random Forest - 
+Random Tree -
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Supply ----
+CNN -
+XGB -
+Random Forest -
+Random Tree -
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Supply X Demand Dataset To Do ----
+
+CNN -
+XGB - Done
+Random Forest - Done 
+Random Tree - Done
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Yearly grouping - Done ?
+Seasonal grouping - Done ?
+
+Supply X Weather Dataset To Do ----
+
+CNN -
+XGB -
+Random Forest -
+Random Tree -
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Yearly grouping - 
+Seasonal grouping -
+
+Demand X Weather Dataset To Do ----
+
+CNN -
+XGB -
+Random Forest -
+Random Tree -
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Yearly grouping - 
+Seasonal grouping -
+
+Supply X Demand X Weather Dataset To Do ----
+CNN -
+XGB -
+Random Forest -
+Random Tree -
+BTLSM -
+LTSM -
+GRU -
+SVR -
+MLP -
+GBDT -
+
+Yearly grouping - 
+Seasonal grouping -
