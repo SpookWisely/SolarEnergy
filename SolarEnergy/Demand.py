@@ -1,5 +1,10 @@
 #----# Libraries
+import array
+from ast import Str
+from ctypes import Array
 from enum import Enum
+from tkinter import CURRENT
+from tokenize import String
 import numpy as np
 import pandas as pd
 from pandas.core.indexes import multi
@@ -28,6 +33,12 @@ from deap import base, creator, tools, algorithms
 1. Should I look into adding lag into the supply dataset aspects of the method as its results for MSE specifically are wildly different
   to that of Demand dataset results.
 """
+
+###RMSE Lower the value the better.
+##R2 the closer to 1 the better the better fitr of the model to the data.
+##MSE Lower the value the better the model performance.
+##MAE indicates the average absolute error between predicted and actual values. The smaller the MAE,
+## the better the model's predictions align with the actual data. A MAE of 0 would mean a perfect prediction
 
 sp_DemandDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 Demand dataset.xlsx")
 sp_SupplyDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 PV supply dataset.xlsx")
@@ -112,6 +123,31 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
+        results = [mse, mae, rmse, r2]
+        #---#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'Decision Tree Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'Decision Tree Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
         #----#
         print('\n',"Demand Data Decision Tree Model Results:")
         print("MSE: {:.4f}".format(mse))
@@ -119,7 +155,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
 
-        return 
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -171,14 +207,39 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "Decision Tree Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'Decision Tree Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'Decision Tree Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+
+
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -260,6 +321,29 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
+        results = [mse, mae, rmse, r2]
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'Random Forest Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        def plot_series(y_true, y_pred, label):
+             plt.figure(figsize=(10, 5))
+             plt.plot(y_true, label='Actual')
+             plt.plot(y_pred, label='Predicted')
+             plt.title(f'Random Forest Model: Actual vs Predicted {label}')
+             plt.xlabel('Time')
+             plt.ylabel('MW')
+             plt.legend()
+             plt.tight_layout()
+             plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
         #----#
         print('\n',"Demand Random Forest Model Results:")
         print("MSE: {:.4f}".format(mse))
@@ -268,7 +352,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("R2: {:.4f}".format(r2))
 
 
-        return 
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -320,14 +404,37 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "Random Forest Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'Random Forest Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'Random Forest Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -406,15 +513,38 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n',"Demand XGB Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'XGB Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'XGB Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -465,14 +595,38 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "XGB Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'XGB Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'XGB Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -550,15 +704,38 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n',"Demand GB Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'Gradient Boosting Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'Gradient Boosting Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -609,14 +786,37 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "GB Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'Gradient Boosting Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'Gradient Boosting Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -718,16 +918,38 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-        #----#
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n',"Demand BLSTM Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'BLSTM Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'BLSTM Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -795,22 +1017,45 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
         y_pred = model.predict(X_test)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "BLSTM Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'BLSTM Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'BLSTM Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -912,16 +1157,38 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-        #----#
+        results = [mse, mae, rmse, r2]
+        
         #----#
         print('\n',"Demand LSTM Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'LSTM Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'LSTM: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -989,22 +1256,45 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
         y_pred = model.predict(X_test)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "LSTM Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'LSTM Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'LSTM Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -1106,16 +1396,38 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-        #----#
+        results = [mse, mae, rmse, r2]
+        
         #----#
         print('\n',"Demand GRU Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'GRU Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'GRU Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results 
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -1183,22 +1495,45 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
         y_pred = model.predict(X_test)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "GRU Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'GRU Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'GRU Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -1321,16 +1656,38 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-        #----#
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n',"Demand SVR Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'SVR Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'SVR Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results 
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -1402,14 +1759,16 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
         y_pred = grid.predict(X_test)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "SVR Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
@@ -1417,7 +1776,30 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
 
-        return 
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'SVR Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'SVR Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -1516,16 +1898,38 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-        #----#
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n',"Demand MLP Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'MLP Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
-        return 
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'MLP Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results 
  elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -1590,22 +1994,45 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
         y_pred = model.predict(X_test)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+
         #----#
         print('\n', "MLP Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'MLP Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'MLP Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
  else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
@@ -1691,14 +2118,39 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-
+        results = [mse, mae, rmse, r2]
+        
+        #---#
         print('\n', "Demand CNN Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
 
-        return
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'CNN Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'CNN Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+        return results
 
     elif ident == 2:
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -1757,14 +2209,39 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int):
         mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_supply_true, y_supply_pred)
-
+        results = [mse, mae, rmse, r2]
+        
+        #---#
         print('\n', "CNN Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'CNN Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'CNN Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+
+
+        return results
 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -1850,14 +2327,39 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
         r2 = r2_score(y_demand_true, y_demand_pred)
-
+        results = [mse, mae, rmse, r2]
+        
+        #---#
         print('\n', "Demand GBDT Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual')
+        plt.title(f'GBDT Model: Actual Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-        return 
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'GBDT Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_demand_true, y_demand_pred, 'Demand')
+
+
+        return results
     elif (ident == 2):
 
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
@@ -1935,13 +2437,15 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         if y_test.ndim == 1:
             y_test = y_test.reshape(-1, 1)
 
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
 
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
+        results = [mse, mae, rmse, r2]
+        
         #----#
         print('\n', "GBDT Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
@@ -1949,19 +2453,273 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
 
-        return 
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual')
+        plt.title(f'GBDT Model: Actual Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+
+        def plot_series(y_true, y_pred, label):
+            plt.figure(figsize=(10, 5))
+            plt.plot(y_true, label='Actual')
+            plt.plot(y_pred, label='Predicted')
+            plt.title(f'GBDT Model: Actual vs Predicted {label}')
+            plt.xlabel('Time')
+            plt.ylabel('MW')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        plot_series(y_supply_true, y_supply_pred, 'Supply')
+
+        return results 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
+
+
+
+ ###RMSE Lower the value the better.
+##R2 the closer to 1 the better the better fitr of the model to the data.
+##MSE Lower the value the better the model performance.
+##RMSE lower value is better, it is the square root of MSE and provides error in the same units as the target variable.
+##MAE indicates the average absolute error between predicted and actual values. The smaller the MAE,
+## the better the model's predictions align with the actual data. A MAE of 0 would mean a perfect prediction
+
+ ##[mse, mae, rmse, r2]
+def BestModelChoice(setOne:Array,setTwo:Array,modelNameOne:str,modelNameTwo:str):
+        scoreOne = 0
+        scoreTwo = 0
+        bestresult = []
+        bestModelName = ''  
+        if (setOne[0] < setTwo[0]): #MSE
+            scoreOne += 1
+        else:
+            scoreTwo += 1      
+        ##
+        if (setOne[1] < setTwo[1]): #MAE
+            scoreOne += 1
+        else:
+            scoreTwo += 1      
+        ##
+        if (setOne[2] < setTwo[2]): #RMSE
+            scoreOne += 1
+        else:
+            scoreTwo += 1
+        ##
+        r2OneScore = 1 - setOne[3]
+        r2TwoScore = 1 - setTwo[3] 
+        if (r2OneScore < r2TwoScore): #R2
+            scoreOne += 1
+        else:
+            scoreTwo += 1
+       ##
+        if (scoreOne > scoreTwo):
+            bestresult = setOne
+            bestModelName = modelNameOne
+            return [bestresult, bestModelName]
+
+        else:
+            bestresult = setTwo
+            bestModelName = modelNameTwo
+            return [bestresult, bestModelName]
+        
+
+
+   ##Jury Rigged implementation for now ,
+   ## will look at creting an array of result arrays and then doing it in a loop.
+   
+##------Demand Functions------
+##decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,1)
+##randomForestModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+  decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,1),
+  randomForestModelDS(sp_DemandDef,sp_SupplyDef,1),
+ 'DecisionTree','RandomForest'
+ )
+"""
+##xgbModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+ CurrentTopResult,
+ xgbModelDS(sp_DemandDef,sp_SupplyDef,1),
+ CurrentTopMLName,'XGB'
+ )
+"""
+##gbModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+ CurrentTopResult,
+ gbModelDS(sp_DemandDef,sp_SupplyDef,1),
+ CurrentTopMLName,'GB'
+ )
+"""
+##biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'BSTMD'
+)
+"""
+##LSTMModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+LSTMModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'LSTM'
+ )
+"""
+##GRUModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+GRUModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'GRU'
+ )
+"""
+##SVRModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+SVRModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'SVR'
+)
+"""
+##MLPModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+MLPModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'MLP'
+ )
+"""
+##CNNModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(CurrentTopResult,
+CNNModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'CNN'
+)
+"""
+##GBDTModelDS(sp_DemandDef,sp_SupplyDef,1) 
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+GBDTModelDS(sp_DemandDef,sp_SupplyDef,1),
+CurrentTopMLName,'GBDT'
+ )
+"""
+"""
+print('\n', "Best Model for solo demand DataSet is : " ,CurrentTopMLName)
+print("MSE: {:.4f}".format(CurrentTopResult[0]))
+print("MAE: {:.4f}".format(CurrentTopResult[1]))
+print("RMSE: {:.4f}".format(CurrentTopResult[2]))
+print("R2: {:.4f}".format(CurrentTopResult[3]))
+
+"""
+
+#------Supply Functions------
 ##decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,2)
 ##randomForestModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+  decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,2),
+  randomForestModelDS(sp_DemandDef,sp_SupplyDef,2),
+ 'DecisionTree','RandomForest'
+ )
+"""
 ##xgbModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+ CurrentTopResult,
+ xgbModelDS(sp_DemandDef,sp_SupplyDef,2),
+ CurrentTopMLName,'XGB'
+ )
+"""
 ##gbModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+ CurrentTopResult,
+ gbModelDS(sp_DemandDef,sp_SupplyDef,2),
+ CurrentTopMLName,'GB'
+ )
+"""
 ##biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'BSTMD'
+)
+"""
 ##LSTMModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+LSTMModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'LSTM'
+ )
+"""
 ##GRUModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+GRUModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'GRU'
+ )
+"""
 ##SVRModelDS(sp_DemandDef,sp_SupplyDef,2)
-##MLPModelDS(sp_DemandDef,sp_SupplyDef,1)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+SVRModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'SVR'
+)
+"""
+##MLPModelDS(sp_DemandDef,sp_SupplyDef,2)
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+MLPModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'MLP'
+ )
+"""
 ##CNNModelDS(sp_DemandDef,sp_SupplyDef,2)
-GBDTModelDS(sp_DemandDef,sp_SupplyDef,2)    
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(CurrentTopResult,
+CNNModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'CNN'
+)
+"""
+GBDTModelDS(sp_DemandDef,sp_SupplyDef,2) 
+"""
+CurrentTopResult, CurrentTopMLName = BestModelChoice(
+CurrentTopResult,
+GBDTModelDS(sp_DemandDef,sp_SupplyDef,2),
+CurrentTopMLName,'GBDT'
+ )
+"""
+"""
+print('\n', "Best Model for solo demand DataSet is : " ,CurrentTopMLName)
+print("MSE: {:.4f}".format(CurrentTopResult[0]))
+print("MAE: {:.4f}".format(CurrentTopResult[1]))
+print("RMSE: {:.4f}".format(CurrentTopResult[2]))
+print("R2: {:.4f}".format(CurrentTopResult[3]))
+
+"""
+"""
+For the smaller datasets that are used
+it seems that the GBDT model is the best performing model for both demand and supply datasets.
+This is likely due to the small size of the datasets and the nature of the data.
+Though could be that for the other models to shine they could need more cleaning of the data
+to help them perform better.
+But not sure how that could be achived.
+"""
+
+

@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Demand.py</StartupFile>
+    <StartupFile>DemandxSupplyxWeather.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -24,17 +24,15 @@
     <Compile Include="DemandxWeather.py" />
     <Compile Include="DemandxSupplyxWeather.py" />
     <Compile Include="Demand.py" />
-    <Compile Include="SupplyxWeather.py" />
     <Compile Include="SupplyxDemand.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="hourly and daily energy dataset.csv" />
-    <Content Include="Sakakah 2021 Demand dataset.csv" />
     <Content Include="Sakakah 2021 Demand dataset.xlsx" />
-    <Content Include="Sakakah 2021 PV supply dataset.csv" />
     <Content Include="Sakakah 2021 PV supply dataset.xlsx" />
     <Content Include="ToDoList.txt" />
-    <Content Include="weather for solar 2021.csv" />
+    <Content Include="Weather for demand 2018.xlsx" />
+    <Content Include="weather for solar 2021.xlsx" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
