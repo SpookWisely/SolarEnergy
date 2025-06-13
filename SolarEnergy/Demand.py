@@ -45,6 +45,8 @@ sp_SupplyDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEner
 
 ##Note to self can't remember if saeed wanted me to do confusion martrixs aswell as the MSE,MAE,RMSE & R2
 def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Decision Tree Results for Demand Dataset -
     MSE: 69.5029
@@ -246,7 +248,8 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
   
 
 def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
-      
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()      
     
     
     def create_sequences_with_time(data, targets, seq_length):
@@ -447,7 +450,8 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length].flatten())
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()   
     """
     Demand XGB Results -
     MSE: 40.8531
@@ -632,6 +636,8 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         return
 
 def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy() 
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -828,7 +834,8 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length])
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Demand Bidirectional LSTM Results -
     MSE: 54.4676
@@ -1067,7 +1074,8 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length])
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Demand LSTM Results -
     MSE: 73.2593
@@ -1306,7 +1314,8 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length])
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Demand GRU Results -
     MSE: 84.4424
@@ -1545,7 +1554,8 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length])
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Additonal Note the base results for SVR very bad to the point I thought they were broken I made a basic hyper param and cycled
     through features to see if I could get better results but will need clarification if what I've done is correct in anyway. Though have
@@ -1805,6 +1815,8 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         return
 
 def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+ demandDs = demandDs.copy()
+ supplyDs = supplyDs.copy() 
  def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -2044,7 +2056,8 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int):
             X.append(data[i:i + seq_length])
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy() 
     """
     Demand CNN Results -
     MSE: 683.9287
@@ -2255,7 +2268,8 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             X.append(data[i:i + seq_length].flatten())
             y.append(targets[i + seq_length])
         return np.array(X), np.array(y)
-   
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()    
     """
     Demand GBDT Results -
     MSE: 0.2395
@@ -2513,12 +2527,16 @@ def BestModelChoice(setOne:Array,setTwo:Array,modelNameOne:str,modelNameTwo:str)
             scoreTwo += 1
         ##
         r2OneScore = 1 - setOne[3]
-        r2TwoScore = 1 - setTwo[3] 
-        if (r2OneScore < r2TwoScore): #R2
-            scoreOne += 1
-        else:
+        r2TwoScore = 1 - setTwo[3]
+        if setOne[3] < 0 and setTwo[3] >= 0:
             scoreTwo += 1
-       ##
+        elif setTwo[3] < 0 and setOne[3] >= 0:
+            scoreOne += 1
+        elif setOne[3] >= 0 and setTwo[3] >= 0:
+            if r2OneScore > r2TwoScore:
+                scoreOne += 1
+            else:
+                scoreTwo += 1
         if (scoreOne > scoreTwo):
             bestresult = setOne
             bestModelName = modelNameOne
@@ -2537,181 +2555,192 @@ def BestModelChoice(setOne:Array,setTwo:Array,modelNameOne:str,modelNameTwo:str)
 ##------Demand Functions------
 ##decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,1)
 ##randomForestModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
   decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,1),
   randomForestModelDS(sp_DemandDef,sp_SupplyDef,1),
  'DecisionTree','RandomForest'
  )
-"""
+
 ##xgbModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
  CurrentTopResult,
  xgbModelDS(sp_DemandDef,sp_SupplyDef,1),
  CurrentTopMLName,'XGB'
  )
-"""
+
 ##gbModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
  CurrentTopResult,
  gbModelDS(sp_DemandDef,sp_SupplyDef,1),
  CurrentTopMLName,'GB'
  )
-"""
+
 ##biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'BSTMD'
 )
-"""
+
 ##LSTMModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 LSTMModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'LSTM'
  )
-"""
+
 ##GRUModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 GRUModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'GRU'
  )
-"""
+
 ##SVRModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 SVRModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'SVR'
 )
-"""
+
 ##MLPModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 MLPModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'MLP'
  )
-"""
+
 ##CNNModelDS(sp_DemandDef,sp_SupplyDef,1)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(CurrentTopResult,
 CNNModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'CNN'
 )
-"""
+
 ##GBDTModelDS(sp_DemandDef,sp_SupplyDef,1) 
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 GBDTModelDS(sp_DemandDef,sp_SupplyDef,1),
 CurrentTopMLName,'GBDT'
  )
-"""
-"""
+
+
 print('\n', "Best Model for solo demand DataSet is : " ,CurrentTopMLName)
 print("MSE: {:.4f}".format(CurrentTopResult[0]))
 print("MAE: {:.4f}".format(CurrentTopResult[1]))
 print("RMSE: {:.4f}".format(CurrentTopResult[2]))
 print("R2: {:.4f}".format(CurrentTopResult[3]))
 
-"""
+
 
 #------Supply Functions------
 ##decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,2)
 ##randomForestModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
   decisionTreeModelDS(sp_DemandDef,sp_SupplyDef,2),
   randomForestModelDS(sp_DemandDef,sp_SupplyDef,2),
  'DecisionTree','RandomForest'
  )
-"""
+
 ##xgbModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
  CurrentTopResult,
  xgbModelDS(sp_DemandDef,sp_SupplyDef,2),
  CurrentTopMLName,'XGB'
  )
-"""
+
 ##gbModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
  CurrentTopResult,
  gbModelDS(sp_DemandDef,sp_SupplyDef,2),
  CurrentTopMLName,'GB'
  )
-"""
+
 ##biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 biDirectionalLSTMDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'BSTMD'
 )
-"""
+
 ##LSTMModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 LSTMModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'LSTM'
  )
-"""
+
 ##GRUModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 GRUModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'GRU'
  )
-"""
+
 ##SVRModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 SVRModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'SVR'
 )
-"""
+
 ##MLPModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 MLPModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'MLP'
  )
-"""
+
 ##CNNModelDS(sp_DemandDef,sp_SupplyDef,2)
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(CurrentTopResult,
 CNNModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'CNN'
 )
-"""
+
 GBDTModelDS(sp_DemandDef,sp_SupplyDef,2) 
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
 CurrentTopResult,
 GBDTModelDS(sp_DemandDef,sp_SupplyDef,2),
 CurrentTopMLName,'GBDT'
  )
-"""
-"""
+
+
 print('\n', "Best Model for solo demand DataSet is : " ,CurrentTopMLName)
 print("MSE: {:.4f}".format(CurrentTopResult[0]))
 print("MAE: {:.4f}".format(CurrentTopResult[1]))
 print("RMSE: {:.4f}".format(CurrentTopResult[2]))
 print("R2: {:.4f}".format(CurrentTopResult[3]))
 
+"""
+Best Model for solo demand DataSet is : 
+Best Model for solo demand DataSet is :  GBDT
+MSE: 0.2395
+MAE: 0.3767
+RMSE: 0.4894
+R2: 0.9997
+--
+Best Model for solo supply DataSet is :  -
+
+--
 """
 """
 For the smaller datasets that are used

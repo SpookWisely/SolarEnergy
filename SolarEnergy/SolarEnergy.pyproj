@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>DemandxSupplyxWeather.py</StartupFile>
+    <StartupFile>Demand.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

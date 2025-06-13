@@ -85,6 +85,9 @@ print(sp_WeatherxSup.head())
 ##print(sp_DemandDef.head())
 ##Note to self can't remember if saeed wanted me to do confusion martrixs aswell as the MSE,MAE,RMSE & R2
 def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
+
     """
     Decision Tree Results for Demand Dataset -
 
@@ -152,6 +155,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'Decision Tree Model: Actual Demand')
@@ -174,6 +178,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
+        """
         return results
     elif (ident == 2):
 
@@ -220,6 +225,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_supply_true, label='Actual')
         plt.title(f'Decision Tree Model: Actual Supply')
@@ -242,7 +248,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_supply_true, y_supply_pred, 'Supply')
-
+        """
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -250,7 +256,8 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
   
 
 def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
-      
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()     
     
     
     def create_sequences_with_time(data, targets, seq_length):
@@ -318,6 +325,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'Random Forest Model: Actual Demand')
@@ -340,7 +348,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
              plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results
     elif (ident == 2):
         supplyDs.replace(-999,np.nan, inplace=True)
@@ -388,6 +396,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_supply_true, label='Actual')
         plt.title(f'Random Forest Model: Actual Supply')
@@ -410,6 +419,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_supply_true, y_supply_pred, 'Supply')
+        """
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -417,6 +427,8 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
 
 
 def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -483,6 +495,7 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'XGB Model: Actual Demand')
@@ -505,7 +518,7 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
 
         return results
     elif (ident == 2):
@@ -553,6 +566,7 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_supply_true, label='Actual')
         plt.title(f'XGB Model: Actual Supply')
@@ -575,12 +589,15 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_supply_true, y_supply_pred, 'Supply')
+        """
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -641,6 +658,7 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'Gradient Boosting Model: Actual Demand')
@@ -663,7 +681,7 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results
     elif (ident == 2):
 
@@ -711,6 +729,7 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_supply_true, label='Actual')
         plt.title(f'Gradient Boosting Model: Actual Supply')
@@ -733,13 +752,15 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_supply_true, y_supply_pred, 'Supply')
-
+        """
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -812,6 +833,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'BLSTM Model: Actual Demand')
@@ -834,7 +856,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results
     elif (ident == 2):
 
@@ -894,6 +916,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'BLSTM Model: Actual Supply')
@@ -914,7 +937,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.legend()
             plt.tight_layout()
             plt.show()
-
+            """
         plot_series(y_demand_true, y_demand_pred, 'Supply')
 
         return results
@@ -923,6 +946,8 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         return
 
 def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -995,7 +1020,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
-
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'BLSTM Model: Actual Demand')
@@ -1018,6 +1043,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
+        """
         return results
     elif (ident == 2):
         supplyDs["hour"] = supplyDs["TimeStamp"].dt.hour   
@@ -1074,7 +1100,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
-
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'BLSTM Model: Actual Supply')
@@ -1097,12 +1123,15 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Supply')
+        """
         return results 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -1175,6 +1204,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'GRU Model: Actual Demand')
@@ -1197,7 +1227,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results 
     elif (ident == 2):
         supplyDs["hour"] = supplyDs["TimeStamp"].dt.hour   
@@ -1282,6 +1312,8 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         return
 ##
 def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -1370,6 +1402,7 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'SVR Model: Actual Demand')
@@ -1392,7 +1425,7 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results 
     elif (ident == 2):
         supplyDs["hour"] = supplyDs["TimeStamp"].dt.hour   
@@ -1462,7 +1495,7 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
-
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'SVR Model: Actual Supply')
@@ -1485,12 +1518,14 @@ def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Supply')
+        """
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+
  def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -1505,6 +1540,8 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         Supply MLP Results - 
 
         """
+ demandDs = demandDs.copy()
+ supplyDs = supplyDs.copy()
  if (ident == 1):
     #----#        
     ##Basic transformation for the base dataset
@@ -1563,6 +1600,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'MLP Model: Actual Demand')
@@ -1585,7 +1623,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
-
+        """
         return results 
  elif (ident == 2):
         supplyDs["hour"] = supplyDs["TimeStamp"].dt.hour   
@@ -1640,6 +1678,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'MLP Model: Actual Supply')
@@ -1662,12 +1701,15 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Supply')
+        """
         return results
  else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -1741,6 +1783,7 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'CNN Model: Actual Demand')
@@ -1763,6 +1806,7 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Demand')
+        """
         return results
 
     elif ident == 2:
@@ -1819,6 +1863,7 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_supply_true, label='Actual')
         plt.title(f'CNN Model: Actual Supply')
@@ -1841,6 +1886,7 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_supply_true, y_supply_pred, 'Supply')
+        """
         return results
 
     else:
@@ -1849,6 +1895,8 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
     
 
 def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
+    demandDs = demandDs.copy()
+    supplyDs = supplyDs.copy()
     def create_sequences_with_time(data, targets, seq_length):
         X, y = [], []
         for i in range(len(data) - seq_length):
@@ -2001,7 +2049,7 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
         print("MAE: {:.4f}".format(mae))
         print("RMSE: {:.4f}".format(rmse))
         print("R2: {:.4f}".format(r2))
-
+        """
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual')
         plt.title(f'GBDT Model: Actual Supply')
@@ -2024,7 +2072,7 @@ def GBDTModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int):
             plt.show()
 
         plot_series(y_demand_true, y_demand_pred, 'Supply')
-
+        """
         return results 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -2062,12 +2110,16 @@ def BestModelChoice(setOne:Array,setTwo:Array,modelNameOne:str,modelNameTwo:str)
             scoreTwo += 1
         ##
         r2OneScore = 1 - setOne[3]
-        r2TwoScore = 1 - setTwo[3] 
-        if (r2OneScore < r2TwoScore): #R2
-            scoreOne += 1
-        else:
+        r2TwoScore = 1 - setTwo[3]
+        if setOne[3] < 0 and setTwo[3] >= 0:
             scoreTwo += 1
-       ##
+        elif setTwo[3] < 0 and setOne[3] >= 0:
+            scoreOne += 1
+        elif setOne[3] >= 0 and setTwo[3] >= 0:
+            if r2OneScore > r2TwoScore:
+                scoreOne += 1
+            else:
+                scoreTwo += 1
         if (scoreOne > scoreTwo):
             bestresult = setOne
             bestModelName = modelNameOne
@@ -2108,7 +2160,7 @@ MLPModelDS(sp_WeatherxDem,sp_WeatherxSup,2)
 CNNModelDS(sp_WeatherxDem,sp_WeatherxSup,2)
 GBDTModelDS(sp_WeatherxDem,sp_WeatherxSup,2)
 """
-"""
+
 CurrentTopResult, CurrentTopMLName = BestModelChoice(
   decisionTreeModelDS(sp_WeatherxDem,sp_WeatherxSup,1),
   randomForestModelDS(sp_WeatherxDem,sp_WeatherxSup,1),
@@ -2192,7 +2244,7 @@ print("MSE: {:.4f}".format(CurrentTopResult[0]))
 print("MAE: {:.4f}".format(CurrentTopResult[1]))
 print("RMSE: {:.4f}".format(CurrentTopResult[2]))
 print("R2: {:.4f}".format(CurrentTopResult[3]))
-"""
+
 
 
 #------Supply Functions------
@@ -2274,8 +2326,14 @@ CurrentTopResult,
 GBDTModelDS(sp_WeatherxDem,sp_WeatherxSup,2),
 CurrentTopMLName,'GBDT'
  )
+"""
+Best Model for solo demandxWeather DataSet is : 
 
+--
+Best Model for supplyxWeather DataSet is :  -
 
+--
+"""
 print('\n', "Best Model for Supply&Weather DataSet is : " ,CurrentTopMLName)
 print("MSE: {:.4f}".format(CurrentTopResult[0]))
 print("MAE: {:.4f}".format(CurrentTopResult[1]))
