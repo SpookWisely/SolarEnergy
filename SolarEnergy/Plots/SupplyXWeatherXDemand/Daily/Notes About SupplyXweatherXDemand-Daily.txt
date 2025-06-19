@@ -1,0 +1,11 @@
+Pretty good results overall with MLP coming on top all these are running of the same seed and random state to keep things fair.
+
+Will look into why MLP comes out on top in the end which could a number of reasons. 
+
+As these are the sets of the original dataset I was given I've also made seperate folder containing the results (Plots & final results table) for the dataset with the addition
+of the winds columns from Olivers weather dataset.
+
+The main difference while the overall winner has not changed (MLP) the fitting results seem to have increased by a good chunk on all of the models tested and changed some
+of the overall ordering of where each model falls in the ranking.
+
+This is to be expected with the addition of more data the better the fit of the model to that of the data and its ability to predict.

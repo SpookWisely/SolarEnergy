@@ -1,0 +1,11 @@
+Over all pretty poor results in comparison to that of daily which maybe the case either from the data itself or do with the sequences creation function that has been made
+
+When looking at the two NSGAs function making use of the CNN model their results seem to be the outliers but since the supposed confusion matrix is low for MSE,RMSE,MAE
+I feel that again there may be issues in their implementation and will have to be resolved.
+
+In the line of thinking in relation to the data with the sequencing made for months merely breaks down the dataset into 12 blocks as opposed to that many more little parts you
+get with the daily sequencing which I feel is the big cause of the horrible results and fitting of the models to the data.
+
+Otherwise its related to my monthly sequencing function as I based it off the daily sequencing but may have made some errors as I'm not too confident in it.
+
+And again with the addition of olivers weather columns (Wind ones) the fitting overall has improved but the overall results are still very poor.

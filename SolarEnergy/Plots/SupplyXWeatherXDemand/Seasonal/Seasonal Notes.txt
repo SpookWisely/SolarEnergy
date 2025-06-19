@@ -1,0 +1,17 @@
+So far with seasonally grouping I've gone about making a new sequencing function under the name of create_seasonal_sequences which I've only impletemented it in the 
+decision tree function in its own python file but I've run into a good number issues currently with it as the amount of samples is too low and I have to manually allow for
+lower amount of samples for the model to run and the results are pointless in comparison.
+
+So with the current trend of monthly having much worse results due to in my mind to essentially with the grouping reducing the size of the dataset and in that 
+same line of reasoning with the seasonal sequencing changing to 4 blocks of 3 months as opposed to the monthly 12 blocks you get even worse results to the point of futility.
+When trying to fit the models in this way with the current dataset.
+
+I feel this could be remedied via having more years of datasets so that can it can go either in the way of comparing the seasons each year or comparing each group of seasons
+with the other seasons to see how it affects prediction etc...
+
+Seasonal Decision Tree Results with random state of 42:
+
+MSE: 6832234521.2398
+MAE: 68331.5013
+RMSE: 82657.3319
+R2: nan
