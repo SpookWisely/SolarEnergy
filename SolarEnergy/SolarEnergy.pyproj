@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Demand - Daily.py</StartupFile>
+    <StartupFile>Oliver Test\Oliver SVR Test.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -28,10 +28,17 @@
     <Compile Include="Demand - Daily.py" />
     <Compile Include="DemandxSupplyxWeather - Daily.py" />
     <Compile Include="DemandxSupplyxWeather - Seasonally.py" />
+    <Compile Include="Oliver Test\Oliver SVR Test.py" />
     <Compile Include="SupplyxDemand.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="hourly and daily energy dataset.csv" />
+    <Content Include="Oliver Test\Sakakah 2021 Demand dataset.xlsx" />
+    <Content Include="Oliver Test\Sakakah 2021 PV supply dataset.xlsx" />
+    <Content Include="Oliver Test\Sakakah 2021 weather dataset Demand.csv" />
+    <Content Include="Oliver Test\Sakakah 2021 weather dataset.csv" />
+    <Content Include="Oliver Test\Weather for demand 2018 - NEW.xlsx" />
+    <Content Include="Oliver Test\weather for solar NEW 2021.xlsx" />
     <Content Include="Plots\DemandSolo\DemSolo-Daily-BLSTM-Actual.png" />
     <Content Include="Plots\DemandSolo\DemSolo-Daily-BLSTM.png" />
     <Content Include="Plots\DemandSolo\DemSolo-Daily-CNN-Actual.png" />
@@ -272,6 +279,7 @@
     <Content Include="weather for solar 2021.xlsx" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Oliver Test\" />
     <Folder Include="Plots\" />
     <Folder Include="Plots\DemandSolo\" />
     <Folder Include="Plots\DemandXWeather\" />

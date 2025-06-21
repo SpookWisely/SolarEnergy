@@ -49,7 +49,7 @@ tuner_subdirs = [
 
 for subdir in tuner_subdirs:
     if os.path.exists(subdir):
-        shutil.rmtree(subdir)
+        shutil.rmtree(subdir) 
 """
 ###RMSE Lower the value the better.
 ##R2 the closer to 1 the better the better fitr of the model to the data.
