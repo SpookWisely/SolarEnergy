@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Oliver Test\Oliver SVR Test.py</StartupFile>
+    <StartupFile>DemandxSupplyxWeather - Daily.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -28,7 +28,13 @@
     <Compile Include="Demand - Daily.py" />
     <Compile Include="DemandxSupplyxWeather - Daily.py" />
     <Compile Include="DemandxSupplyxWeather - Seasonally.py" />
+    <Compile Include="DemandxSupplyxWeather - Daily - Shuffle On.py" />
     <Compile Include="Oliver Test\Oliver SVR Test.py" />
+    <Compile Include="Single Weather Files\DemandxSupplyxWeather - Daily.py" />
+    <Compile Include="Single Weather Files\DemandxSupplyxWeather - Monthly.py" />
+    <Compile Include="Single Weather Files\DemandxSupplyxWeather - Seasonally.py" />
+    <Compile Include="Single Weather Files\DemandxWeather - Daily .py" />
+    <Compile Include="Single Weather Files\DemandxWeather - Monthly.py" />
     <Compile Include="SupplyxDemand.py" />
   </ItemGroup>
   <ItemGroup>
@@ -227,6 +233,60 @@
     <Content Include="Plots\SupplyXWeatherXDemand\Monthly\Notes About SupplyXweatherXDemand.txt" />
     <Content Include="Plots\SupplyXWeatherXDemand\Monthly\Results Table Monthly.PNG" />
     <Content Include="Plots\SupplyXWeatherXDemand\Seasonal\Seasonal Notes.txt" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-BLSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-DT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-GBDT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-GradBs.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-GRU.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-LSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-MLP.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-NSGA2-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-NSGA3-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-RF.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-SVR.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Dem-XGB.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Final Results Table SupplyXDemandXWeather - Daily- Shuffle - False.PNG" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-BLSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-DT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-GBDT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-GradBs.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-GRU.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-LSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-MLP.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-NSGA2-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-NSGA3-CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-RF.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-SVR.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\Sup-XGB.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_BLSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_DT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_GBDT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_GradBs.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_GRU.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_LSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_MLP.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_NSGA2_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_NSGA3_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_RF.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_SVR.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Dem_XGB.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Final Results Table SupplyXDemandXWeather - Daily- Shuffle - True.PNG" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_BLSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_DT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_GBDT.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_GradBs.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_GRU.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_LSTM.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_MLP.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_NSGA2_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_NSGA3_CNN.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_RF.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_SVR.png" />
+    <Content Include="Plots\SupplyXWeatherXDemand\With Shuffle True\Sup_XGB.png" />
     <Content Include="Plots\SupplyXWeather\Daily\Final Results Table SupplyXWeather - Daily.PNG" />
     <Content Include="Plots\SupplyXWeather\Daily\SupW-Daily-BLSTM-Actual.png" />
     <Content Include="Plots\SupplyXWeather\Daily\SupW-Daily-BLSTM.png" />
@@ -273,12 +333,16 @@
     <Content Include="Plots\SupplyXWeather\Monthly\SupW-Monthly-XGB.png" />
     <Content Include="Sakakah 2021 Demand dataset.xlsx" />
     <Content Include="Sakakah 2021 PV supply dataset.xlsx" />
+    <Content Include="Sakakah 2021 weather dataset Demand.xlsx" />
     <Content Include="Sakakah 2021 weather dataset.xlsx" />
     <Content Include="ToDoList.txt" />
     <Content Include="Weather for demand 2018.xlsx" />
     <Content Include="weather for solar 2021.xlsx" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Plots\SupplyXWeatherXDemand\WIth Shuffle False\" />
+    <Folder Include="Plots\SupplyXWeatherXDemand\With Shuffle True\" />
+    <Folder Include="Single Weather Files\" />
     <Folder Include="Oliver Test\" />
     <Folder Include="Plots\" />
     <Folder Include="Plots\DemandSolo\" />

@@ -45,15 +45,10 @@ with ALLSKY_SFC_SW_DWN ending up as ALLSKY_SFC_SW_DWN_x/ALLSKY_SFC_SW_DWN_y as a
 
 sp_DemandDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 Demand dataset.xlsx")
 sp_SupplyDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 PV supply dataset.xlsx")
-sp_WeatherDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\weather for solar 2021.xlsx")
+sp_WeatherDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Oliver Test\weather for solar NEW 2021.xlsx")
 sp_WeatherDe = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Weather for demand 2018.xlsx")
-sp_WeatherWind = pd.read_excel(
-    r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 weather dataset.xlsx",
-    usecols=lambda col, c=pd.read_excel(
-        r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 weather dataset.xlsx", nrows=0
-    ).columns: col in list(c)[-2:]
-)
-print(sp_WeatherWind.head())
+##sp_WeatherDe = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Sakakah 2021 weather dataset Demand.xlsx")
+
 ##sp_WeatherDeDef = pd.read_excel
 sp_DemandDef["TimeStamp"] = pd.to_datetime(sp_DemandDef["DATE-TIME"])
 sp_SupplyDef["TimeStamp"] = pd.to_datetime(sp_SupplyDef["Date & Time"])
@@ -71,18 +66,19 @@ sp_SupplyDef.rename(columns={"MW": "Supply_MW"}, inplace=True)
 sp_DemandDef.drop(columns=["DATE-TIME"], inplace=True)
 sp_SupplyDef.drop(columns=["Date & Time"], inplace=True)
 sp_WeatherDef.drop(columns=["YEAR", "MO", "DY", "HR"], inplace=True)
+sp_WeatherDe.drop(columns=["YEAR", "MO", "DY", "HR"], inplace=True)
 
 sp_FullMerg = pd.merge(sp_DemandDef, sp_WeatherDef, on="TimeStamp", how="inner")
 sp_FullMerg = pd.merge(sp_SupplyDef, sp_FullMerg, on="TimeStamp", how="inner")
-sp_FullMerg = pd.concat([sp_FullMerg, sp_WeatherWind.reset_index(drop=True)], axis=1)
-print(sp_FullMerg.head(20))
-##sp_FullMerg = pd.merge(sp_WeatherDe, sp_FullMerg, on="TimeStamp", how="inner")
+##sp_FullMerg = pd.concat([sp_FullMerg, sp_WeatherWind.reset_index(drop=True)], axis=1)
+sp_FullMerg = pd.merge(sp_WeatherDe, sp_FullMerg, on="TimeStamp", how="inner")
 
 ##linear interpolation to smooth out the datasets
 ##So far has worked out great for supply but demand is getting bad results.
-sp_FullMerg.interpolate(method='linear', inplace=True)
 #print(sp_FullMerg.head())
-
+sp_FullMerg.replace(-999, np.nan, inplace=True)
+sp_FullMerg.interpolate(method='linear', inplace=True)
+sp_FullMerg.dropna(inplace=True)
 #desave_loc = r"E:\AI Lecture Notes\Datasets\Merged\DemandxWeather.csv"
 ##susave_loc = r"E:\AI Lecture Notes\Datasets\Merged\SupplyxWeather.csv"
 #sp_WeatherxDem.to_csv(desave_loc, index=False)
@@ -109,82 +105,17 @@ def create_sequences_with_time(data, targets, seq_length):
         y.append(targets[i + seq_length])
     return np.array(X), np.array(y)
 
-"""
-def create_monthly_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
+def create_sequence_with_time(df, feature_columns, target_columns, window_size=24):
+    """
+    Creates sequences of features and targets for time series models.
+    Each X[i] contains the features for window_size time steps,
+    and y[i] contains the target at the next time step.
+    """
     X, y = [], []
-    grouped = df.groupby(['year', 'month'])
-    months = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(m)[feature_cols]) for m in months[:-1]) if pad_to_max else None
-
-    for i in range(len(months) - 1):
-        this_month = grouped.get_group(months[i])
-        next_month = grouped.get_group(months[i + 1])
-
-        x_seq = this_month[feature_cols].values
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        # Use mean for the next month as target
-        y.append(next_month[target_cols].mean().values)
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
-"""
-random.seed(42)
-np.random.seed(42)
-tf.random.set_seed(42)
-#----#
-def create_seasonal_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
-    # Map months to seasons
-    def month_to_season(month):
-        if month in [3, 4, 5]:
-            return 'Spring'
-        elif month in [6, 7, 8]:
-            return 'Summer'
-        elif month in [9, 10, 11]:
-            return 'Autumn'
-        else:  # 12, 1, 2
-            return 'Winter'
-
-    df['season'] = df['month'].apply(month_to_season)
-
-    # Adjust year for December, January, February to keep winters together
-    df['season_year'] = df['year']
-    df.loc[(df['month'] == 12), 'season_year'] += 1  # December belongs to next year's winter
-
-    X, y = [], []
-    grouped = df.groupby(['season_year', 'season'])
-    seasons = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(s)[feature_cols]) for s in seasons[:-1]) if pad_to_max else None
-
-    for i in range(len(seasons) - 1):
-        this_season = grouped.get_group(seasons[i])
-        next_season = grouped.get_group(seasons[i + 1])
-
-        x_seq = this_season[feature_cols].values
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        y.append(next_season[target_cols].values[0])  # or customize as needed
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
+    for i in range(len(df) - window_size):
+        X.append(df[feature_columns].iloc[i:i+window_size].values.flatten())
+        y.append(df[target_columns].iloc[i+window_size].values)
+    return np.array(X), np.array(y)
 
 def decisionTreeModelDS(mergedDs: pd.DataFrame):
     mergedDs = mergedDs.copy()
@@ -204,8 +135,7 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame):
     --
     """
 
-    mergedDs.replace(-999, np.nan, inplace=True)
-    mergedDs.dropna(inplace=True)
+
 
     ###minLength = min(len(demandDs))
     ###demandDs = demandDs.iloc[minLength]
@@ -215,18 +145,13 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame):
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
-    """
+    
     feature_cols = [
         "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
-        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S", "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
-        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D", "hour", "day", "month"
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    """
-    feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
-    ]
-    
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -319,8 +244,7 @@ def randomForestModelDS(mergedDs: pd.DataFrame):
     R2: 0.3781
     --
     """
-    mergedDs.replace(-999, np.nan, inplace=True)
-    mergedDs.dropna(inplace=True)
+
 
     ###minLength = min(len(demandDs))
     ###demandDs = demandDs.iloc[minLength]
@@ -332,8 +256,10 @@ def randomForestModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -447,8 +373,7 @@ def xgbModelDS(mergedDs: pd.DataFrame):
 
     """
     #----#
-    mergedDs.replace(-999, np.nan, inplace=True)
-    mergedDs.dropna(inplace=True)
+
 
     ###minLength = min(len(demandDs))
     ###demandDs = demandDs.iloc[minLength]
@@ -459,13 +384,11 @@ def xgbModelDS(mergedDs: pd.DataFrame):
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
-    mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
-    mergedDs["day"] = mergedDs["TimeStamp"].dt.day
-    mergedDs["month"] = mergedDs["TimeStamp"].dt.month
-
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -578,8 +501,10 @@ def gbModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -698,8 +623,10 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -820,8 +747,10 @@ def LSTMModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -966,8 +895,10 @@ def GRUModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -1113,12 +1044,33 @@ def SVRModelDS(mergedDs: pd.DataFrame):
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
-
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
+    """
+    Merged SVR Model Results: - With below sequence creation method
+    MSE: 3695.3976
+    MAE: 48.1701
+    RMSE: 60.7898
+    R2: -0.4673
+    """
+    target_cols = ['Demand_MW', 'Supply_MW']
+    seq_length = 24
+    X_seq, y_seq = create_sequence_with_time(mergedDs,feature_cols,target_cols, seq_length)
+    scaler_X = MinMaxScaler()
+    scaler_y = MinMaxScaler()
+    X = scaler_X.fit_transform(X_seq)
+    y = scaler_y.fit_transform(y_seq)
+
     
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3,shuffle=False
+    )
+    """
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -1131,13 +1083,18 @@ def SVRModelDS(mergedDs: pd.DataFrame):
     X_train, X_test, y_train, y_test = train_test_split(
         X_seq, y_seq, test_size=0.3, shuffle=False
     )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
+    """
+    """
+    Merged SVR Model Results: - With Above Method of sequence creation
+    MSE: 3695.3976
+    MAE: 48.1701
+    RMSE: 60.7898
+    R2: -0.4673
 
-   
+    """
     param_grid = {
-        'estimator__C': [0.1],           # Regularization, similar to tree depth/complexity
-        'estimator__gamma': [1],  # Kernel coefficient, like learning rate
+        'estimator__C': [1],           # Regularization, similar to tree depth/complexity
+        #'estimator__gamma': [1],  # Kernel coefficient, like learning rate
         'estimator__epsilon': [0.01], # Insensitivity, similar to min_samples_split
         'estimator__kernel': ['rbf']                 # Keep kernel consistent
     }
@@ -1227,8 +1184,10 @@ def MLPModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -1243,6 +1202,7 @@ def MLPModelDS(mergedDs: pd.DataFrame):
     X_train, X_test, y_train, y_test = train_test_split(
         X_seq, y_seq, test_size=0.3, shuffle=False
     )
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((X_train.shape[0], seq_length * num_features))
     X_test = X_test.reshape((X_test.shape[0], seq_length * num_features))
@@ -1358,8 +1318,10 @@ def CNNModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -1507,8 +1469,10 @@ def GBDTModelDS(mergedDs: pd.DataFrame):
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     
     scaler_X = MinMaxScaler()
@@ -1570,7 +1534,8 @@ def GBDTModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    """
+    
+    
     #-Demand Plot-#
     plt.figure(figsize=(10, 5))
     plt.plot(y_demand_true[:, 0], label='Actual Demand')
@@ -1591,7 +1556,7 @@ def GBDTModelDS(mergedDs: pd.DataFrame):
     plt.legend()
     plt.tight_layout()
     plt.show()
-    """
+    
     return results
 
 def custom_mutate(individual, indpb):
@@ -1622,15 +1587,16 @@ def NSGA2_CNN_ModelDS(
 ):
 
     mergedDs = mergedDs.copy()
-    mergedDs.replace(-999, np.nan, inplace=True)
-    mergedDs.dropna(inplace=True)
+
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     target_cols = ['Demand_MW', 'Supply_MW']
     
@@ -1846,15 +1812,15 @@ def NSGA3_CNN_ModelDS(
 ):
 
     mergedDs = mergedDs.copy()
-    mergedDs.replace(-999, np.nan, inplace=True)
-    mergedDs.dropna(inplace=True)
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
 
     feature_cols = [
-    "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
-    "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     target_cols = ['Demand_MW', 'Supply_MW']
     
@@ -2122,7 +2088,7 @@ mlp = ensure_real_result(MLPModelDS(sp_FullMerg))
 cnn = ensure_real_result(CNNModelDS(sp_FullMerg))
 nsga2cnn = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg))
 nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg))
-modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
+modelresults = [DecTree, randForest, xgb,gb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
 
 """
 DecTree = decisionTreeModelDS(sp_FullMerg)

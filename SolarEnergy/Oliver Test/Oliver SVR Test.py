@@ -311,7 +311,7 @@ def Oliver_SVR_LagandHyp(merged:pd.DataFrame, id:int):
     X = scaler_X.fit_transform(X)
     y = scaler_y.fit_transform(y)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,shuffle=False)
    
     param_grid = {
         'estimator__C': [1],
@@ -398,7 +398,7 @@ def BetterModelSelectionMethod(ModelArray: list):
         if best_idx != i:
             ordered[i], ordered[best_idx] = ordered[best_idx], ordered[i]
     return ordered
-
+"""
 MSE = 628.8253
 MAE = 12.3056
 RMSE = 25.0764
@@ -417,18 +417,19 @@ bestSVRResultsOrdered = BetterModelSelectionMethod([
     oliverWithHypandLag,
     copiedResults
 ])
-    
-harryDefault = Oliver_SVR(mergedNewDs,2)
-harryWithHyP = Oliver_SVR_HyP(mergedNewDs,2)
-harryWith24Lag = Oliver_SVR_Lag(mergedNewDs,2)
+"""   
+#harryDefault = Oliver_SVR(mergedNewDs,2)
+#harryWithHyP = Oliver_SVR_HyP(mergedNewDs,2)
+#harryWith24Lag = Oliver_SVR_Lag(mergedNewDs,2)
 harryWithHypandLag = Oliver_SVR_LagandHyp(mergedNewDs,2)
 bestSVRResultsOrderedHarry = BetterModelSelectionMethod([
-    harryDefault,
-    harryWithHyP,
-    harryWith24Lag,
+    #harryDefault,
+    #harryWithHyP,
+    #harryWith24Lag,
     harryWithHypandLag,
     
 ])
+"""
 print("\nSVR Model Ranking Best to Worst - Olivers Dataset:")
 print("{:<20} {:>12} {:>12} {:>12} {:>10}".format("Model", "MSE", "MAE", "RMSE", "R2"))
 print("-" * 70)
@@ -436,7 +437,7 @@ for res in bestSVRResultsOrdered:
     print("{:<20} {:>12.4f} {:>12.4f} {:>12.4f} {:>10.4f}".format(
         res[4], res[0], res[1], res[2], res[3]
     ))
-
+"""    
 print("\nSVR Model Ranking Best to Worst - Harrys Dataset")
 print("{:<20} {:>12} {:>12} {:>12} {:>10}".format("Model", "MSE", "MAE", "RMSE", "R2"))
 print("-" * 70)
