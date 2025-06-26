@@ -6,6 +6,7 @@ from ctypes import Array
 from enum import Enum
 from tkinter import CURRENT
 from tokenize import String
+from xmlrpc.client import boolean
 import numpy as np
 import pandas as pd
 from pandas.core.indexes import multi
@@ -13,6 +14,7 @@ import shutil
 import os
 import scipy as sp
 import xgboost as xgb
+import shap
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -117,7 +119,7 @@ def create_sequence_with_time(df, feature_columns, target_columns, window_size=2
         y.append(df[target_columns].iloc[i+window_size].values)
     return np.array(X), np.array(y)
 
-def decisionTreeModelDS(mergedDs: pd.DataFrame):
+def decisionTreeModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -176,7 +178,7 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame):
     base_model = MultiOutputRegressor(DecisionTreeRegressor(random_state=42))
     grid_search = GridSearchCV(base_model, param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1)
     grid_search.fit(X_train, y_train)
-
+   
     print("Best parameters:", "\n", grid_search.best_params_)
     """
     base_model = MultiOutputRegressor(DecisionTreeRegressor(random_state=42))
@@ -199,34 +201,81 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
+    # Extract individual regressors from MultiOutputRegressor
+    best_tree_model = grid_search.best_estimator_
 
-    
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer.shap_values(X_test)
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
+                      
+    """
+    for feature, importance in sorted_features:
+        print("{:<30} {:>10.4f}".format(feature, importance))  
+    """
+    if plots == True:
     #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'Decision Tree Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'Decision Tree Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'Decision Tree Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'Decision Tree Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        
     return results
 
 
-def randomForestModelDS(mergedDs: pd.DataFrame):
+def randomForestModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -320,6 +369,49 @@ def randomForestModelDS(mergedDs: pd.DataFrame):
     r2 = r2_score(y_demand_true, y_demand_pred)
     modelName = "Random Forest"
     results = [mse, mae, rmse, r2,modelName]
+    best_tree_model = grid_search.best_estimator_
+
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer.shap_values(X_test)
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
     #----#
     print('\n', "Merged Random Forest Model Results:")
     print("MSE: {:.4f}".format(mse))
@@ -328,32 +420,32 @@ def randomForestModelDS(mergedDs: pd.DataFrame):
     print("R2: {:.4f}".format(r2))
 
 
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'Random Forest Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'Random Forest Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'Random Forest Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'Random Forest Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def xgbModelDS(mergedDs: pd.DataFrame):
+def xgbModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -444,39 +536,82 @@ def xgbModelDS(mergedDs: pd.DataFrame):
     r2 = r2_score(y_demand_true, y_demand_pred)
     modelName = "XGB"
     results = [mse, mae, rmse, r2,modelName]
+    best_tree_model = grid_search.best_estimator_
 
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer.shap_values(X_test)
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
     #----#
     print('\n', "Merged XGB Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'XGB Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'XGB Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'XGB Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'XGB Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def gbModelDS(mergedDs: pd.DataFrame):
+def gbModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
     """
     GradientBoosting for Merged Dataset -
@@ -565,39 +700,82 @@ def gbModelDS(mergedDs: pd.DataFrame):
     r2 = r2_score(y_demand_true, y_demand_pred)
     modelName = "Gradient Boost"
     results = [mse, mae, rmse, r2,modelName]
-    
+    best_tree_model = grid_search.best_estimator_
+
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer.shap_values(X_test)
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
     #----#
     print('\n', "Merged GB Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'Gradient Boosting Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'Gradient Boosting Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'Gradient Boosting Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'Gradient Boosting Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def biDirectionalLSTMDS(mergedDs: pd.DataFrame):
+def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -685,7 +863,58 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame):
 
     y_demand_true = scaler_y.inverse_transform(y_test)
     y_demand_pred = scaler_y.inverse_transform(y_pred)
+    shap_values_dict = {}
 
+    explainer = shap.GradientExplainer(best_model, X_train)
+    shap_values = explainer.shap_values(X_test)
+    expanded_feature_cols = [
+       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+   ]
+    # Loop through each output (e.g., Demand and Supply)
+    for i, shap_value in enumerate(shap_values):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        # Store SHAP values in the dictionary
+        shap_values_dict[f"Output_{i + 1}"] = shap_value
+    """
+    print("feature_cols:", feature_cols)
+    print("mean_shap_values:", mean_shap_values)
+    print("Length of feature_cols:", len(feature_cols))
+    print("Length of mean_shap_values:", len(mean_shap_values))
+    
+    # If mean_shap_values is a NumPy array, ensure it's flattened
+    if isinstance(mean_shap_values, np.ndarray):
+        print("Shape of mean_shap_values:", mean_shap_values.shape)
+    """
+    # Prepare SHAP values for return
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+    # Adjust shap_values to match the flattened structure
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+    # Select the SHAP values for the first output (e.g., Demand)
+    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
+
+    # Prepare SHAP importance with adjusted SHAP values
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(shap_values_dict))
+}
+
+    print("Shape of X_test_flat:", X_test_flat.shape)
+    print("Shape of shap_values_flat:", shap_values_flat.shape)
+    print("Shape of shap_values_demand:", shap_values_demand.shape)
+
+    
+    assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary for the first output
+    shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -699,32 +928,33 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'BLSTM Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'BLSTM Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'BLSTM Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'BLSTM Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def LSTMModelDS(mergedDs: pd.DataFrame):
+def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -830,7 +1060,58 @@ def LSTMModelDS(mergedDs: pd.DataFrame):
     """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
+    shap_values_dict = {}
 
+    explainer = shap.GradientExplainer(best_model, X_train)
+    shap_values = explainer.shap_values(X_test)
+    expanded_feature_cols = [
+       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+   ]
+    # Loop through each output (e.g., Demand and Supply)
+    for i, shap_value in enumerate(shap_values):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        # Store SHAP values in the dictionary
+        shap_values_dict[f"Output_{i + 1}"] = shap_value
+    """
+    print("feature_cols:", feature_cols)
+    print("mean_shap_values:", mean_shap_values)
+    print("Length of feature_cols:", len(feature_cols))
+    print("Length of mean_shap_values:", len(mean_shap_values))
+    
+    # If mean_shap_values is a NumPy array, ensure it's flattened
+    if isinstance(mean_shap_values, np.ndarray):
+        print("Shape of mean_shap_values:", mean_shap_values.shape)
+    """
+    # Prepare SHAP values for return
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+    # Adjust shap_values to match the flattened structure
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+    # Select the SHAP values for the first output (e.g., Demand)
+    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
+
+    # Prepare SHAP importance with adjusted SHAP values
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(shap_values_dict))
+}
+
+    print("Shape of X_test_flat:", X_test_flat.shape)
+    print("Shape of shap_values_flat:", shap_values_flat.shape)
+    print("Shape of shap_values_demand:", shap_values_demand.shape)
+
+    
+    assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary for the first output
+    shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -844,32 +1125,33 @@ def LSTMModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'LSTM Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'LSTM Tree Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'LSTM Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'LSTM Tree Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def GRUModelDS(mergedDs: pd.DataFrame):
+def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
     """
     
@@ -975,7 +1257,58 @@ def GRUModelDS(mergedDs: pd.DataFrame):
     """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
+    shap_values_dict = {}
 
+    explainer = shap.GradientExplainer(best_model, X_train)
+    shap_values = explainer.shap_values(X_test)
+    expanded_feature_cols = [
+       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+   ]
+    # Loop through each output (e.g., Demand and Supply)
+    for i, shap_value in enumerate(shap_values):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        # Store SHAP values in the dictionary
+        shap_values_dict[f"Output_{i + 1}"] = shap_value
+    """
+    print("feature_cols:", feature_cols)
+    print("mean_shap_values:", mean_shap_values)
+    print("Length of feature_cols:", len(feature_cols))
+    print("Length of mean_shap_values:", len(mean_shap_values))
+    
+    # If mean_shap_values is a NumPy array, ensure it's flattened
+    if isinstance(mean_shap_values, np.ndarray):
+        print("Shape of mean_shap_values:", mean_shap_values.shape)
+    """
+    # Prepare SHAP values for return
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+    # Adjust shap_values to match the flattened structure
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+    # Select the SHAP values for the first output (e.g., Demand)
+    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
+
+    # Prepare SHAP importance with adjusted SHAP values
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(shap_values_dict))
+}
+
+    print("Shape of X_test_flat:", X_test_flat.shape)
+    print("Shape of shap_values_flat:", shap_values_flat.shape)
+    print("Shape of shap_values_demand:", shap_values_demand.shape)
+
+    
+    assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary for the first output
+    shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -990,32 +1323,33 @@ def GRUModelDS(mergedDs: pd.DataFrame):
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
    
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'GRU Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'GRU Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'GRU Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'GRU Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def SVRModelDS(mergedDs: pd.DataFrame):
+def SVRModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
 
@@ -1120,7 +1454,50 @@ def SVRModelDS(mergedDs: pd.DataFrame):
     
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
+    best_tree_model = grid.best_estimator_
 
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+    def model_predict(X):
+        return estimator.predict(X)
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.KernelExplainer(model_predict, X_train[:100])        
+        shap_values = explainer.shap_values(X_test[:100])
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1134,32 +1511,33 @@ def SVRModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'SVR Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'SVR Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'SVR Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'SVR Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    
-    return results
+    return results, sorted_features
 
 
-def MLPModelDS(mergedDs: pd.DataFrame):
+def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -1259,7 +1637,58 @@ def MLPModelDS(mergedDs: pd.DataFrame):
     """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
+    shap_values_dict = {}
 
+    explainer = shap.GradientExplainer(best_model, X_train)
+    shap_values = explainer.shap_values(X_test)
+    expanded_feature_cols = [
+       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+   ]
+    # Loop through each output (e.g., Demand and Supply)
+    for i, shap_value in enumerate(shap_values):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        # Store SHAP values in the dictionary
+        shap_values_dict[f"Output_{i + 1}"] = shap_value
+    """
+    print("feature_cols:", feature_cols)
+    print("mean_shap_values:", mean_shap_values)
+    print("Length of feature_cols:", len(feature_cols))
+    print("Length of mean_shap_values:", len(mean_shap_values))
+    
+    # If mean_shap_values is a NumPy array, ensure it's flattened
+    if isinstance(mean_shap_values, np.ndarray):
+        print("Shape of mean_shap_values:", mean_shap_values.shape)
+    """
+    # Prepare SHAP values for return
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+    # Adjust shap_values to match the flattened structure
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+    # Select the SHAP values for the first output (e.g., Demand)
+    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
+
+    # Prepare SHAP importance with adjusted SHAP values
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(shap_values_dict))
+}
+
+    print("Shape of X_test_flat:", X_test_flat.shape)
+    print("Shape of shap_values_flat:", shap_values_flat.shape)
+    print("Shape of shap_values_demand:", shap_values_demand.shape)
+
+    
+    assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary for the first output
+    shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1272,30 +1701,31 @@ def MLPModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'MLP Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'MLP Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'MLP Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'MLP Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def CNNModelDS(mergedDs: pd.DataFrame):
+def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
 
@@ -1406,7 +1836,58 @@ def CNNModelDS(mergedDs: pd.DataFrame):
     """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
+    shap_values_dict = {}
 
+    explainer = shap.GradientExplainer(best_model, X_train)
+    shap_values = explainer.shap_values(X_test)
+    expanded_feature_cols = [
+       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+   ]
+    # Loop through each output (e.g., Demand and Supply)
+    for i, shap_value in enumerate(shap_values):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        # Store SHAP values in the dictionary
+        shap_values_dict[f"Output_{i + 1}"] = shap_value
+    """
+    print("feature_cols:", feature_cols)
+    print("mean_shap_values:", mean_shap_values)
+    print("Length of feature_cols:", len(feature_cols))
+    print("Length of mean_shap_values:", len(mean_shap_values))
+    
+    # If mean_shap_values is a NumPy array, ensure it's flattened
+    if isinstance(mean_shap_values, np.ndarray):
+        print("Shape of mean_shap_values:", mean_shap_values.shape)
+    """
+    # Prepare SHAP values for return
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+    # Adjust shap_values to match the flattened structure
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+    # Select the SHAP values for the first output (e.g., Demand)
+    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
+
+    # Prepare SHAP importance with adjusted SHAP values
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(shap_values_dict))
+}
+
+    print("Shape of X_test_flat:", X_test_flat.shape)
+    print("Shape of shap_values_flat:", shap_values_flat.shape)
+    print("Shape of shap_values_demand:", shap_values_demand.shape)
+
+    
+    assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary for the first output
+    shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1420,32 +1901,33 @@ def CNNModelDS(mergedDs: pd.DataFrame):
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'CNN Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'CNN Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'CNN Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'CNN Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
 
-def GBDTModelDS(mergedDs: pd.DataFrame):
+def GBDTModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
 
     """
@@ -1526,7 +2008,49 @@ def GBDTModelDS(mergedDs: pd.DataFrame):
     r2 = r2_score(y_demand_true, y_demand_pred)
     modelName = "GBDT"
     results = [mse, mae, rmse, r2,modelName]
+    best_tree_model = grid_search.best_estimator_
 
+    # Initialize a dictionary to store SHAP values for each output
+    shap_values_dict = {}
+
+    # Loop through each output's regressor
+    for i, estimator in enumerate(best_tree_model.estimators_):
+        print(f"\nComputing SHAP values for output {i + 1}...")
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer.shap_values(X_test)
+        shap_values_dict[f"Output_{i + 1}"] = shap_values
+
+        # Compute mean absolute SHAP values for global feature importance
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+
+        # Print feature importance for this output
+        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+    # Prepare SHAP values for return
+    shap_importance = {
+        f"Output_{i + 1}": sorted(
+            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for i in range(len(best_tree_model.estimators_))
+    }
+    expanded_feature_cols = [
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
+    # Debugging prints
+    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
+    print(f"Shape of X_test: {X_test.shape}")
+    print(f"Shape of shap_values: {shap_values.shape}")
+
+    # Ensure compatibility
+    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+
+    # Plot SHAP summary
+    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
     #---#
 
     print('\n', "Merged GBDT Model Results:")
@@ -1535,29 +2059,30 @@ def GBDTModelDS(mergedDs: pd.DataFrame):
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'GBDT Model: Actual vs Predicted Demand: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'GBDT Model: Actual vs Predicted Supply: Daily')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
-    #-Demand Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 0], label='Actual Demand')
-    plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-    plt.title(f'GBDT Model: Actual vs Predicted Demand: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    #-Supply Plot-#
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true[:, 1], label='Actual Supply')
-    plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-    plt.title(f'GBDT Model: Actual vs Predicted Supply: Daily')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    
-    return results
+    return results, shap_importance
 
 def custom_mutate(individual, indpb):
     # filters1: int, kernel_size1: int, dropout1: float, dense_units: int, learning_rate: float
@@ -1577,6 +2102,7 @@ def ensure_real_result(results):
     return [float(np.real(x)) if isinstance(x, (complex, np.complexfloating, np.floating, float)) else x for x in results]
 def NSGA2_CNN_ModelDS(
     mergedDs: pd.DataFrame,
+    plots: boolean,
     pop_size=5,
     ngen=3,
     cxpb=0.7,
@@ -1777,31 +2303,33 @@ def NSGA2_CNN_ModelDS(
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true, label='Actual Demand')
-    plt.plot(y_demand_pred, label='Predicted Demand')
-    plt.title('NSGA-II CNN: Actual vs Predicted Demand')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_supply_true, label='Actual Supply')
-    plt.plot(y_supply_pred, label='Predicted Supply')
-    plt.title('NSGA-II CNN: Actual vs Predicted Supply')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual Demand')
+        plt.plot(y_demand_pred, label='Predicted Demand')
+        plt.title('NSGA-II CNN: Actual vs Predicted Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual Supply')
+        plt.plot(y_supply_pred, label='Predicted Supply')
+        plt.title('NSGA-II CNN: Actual vs Predicted Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results    
 
 def NSGA3_CNN_ModelDS(
     mergedDs: pd.DataFrame,
+    plots: boolean,
     pop_size=5,
     ngen=3,
     cxpb=0.7,
@@ -2001,26 +2529,27 @@ def NSGA3_CNN_ModelDS(
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_demand_true, label='Actual Demand')
-    plt.plot(y_demand_pred, label='Predicted Demand')
-    plt.title('NSGA-III CNN: Actual vs Predicted Demand')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    if plots == True:
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(y_supply_true, label='Actual Supply')
-    plt.plot(y_supply_pred, label='Predicted Supply')
-    plt.title('NSGA-III CNN: Actual vs Predicted Supply')
-    plt.xlabel('Time')
-    plt.ylabel('MW')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true, label='Actual Demand')
+        plt.plot(y_demand_pred, label='Predicted Demand')
+        plt.title('NSGA-III CNN: Actual vs Predicted Demand')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_supply_true, label='Actual Supply')
+        plt.plot(y_supply_pred, label='Predicted Supply')
+        plt.title('NSGA-III CNN: Actual vs Predicted Supply')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return results
 
@@ -2074,21 +2603,27 @@ def BetterModelSelectionMethod(ModelArray: list):
         if best_idx != i:
             ordered[i], ordered[best_idx] = ordered[best_idx], ordered[i]
     return ordered
+"""
+DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False))
 
-DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg))
-randForest = ensure_real_result(randomForestModelDS(sp_FullMerg))
-xgb = ensure_real_result(xgbModelDS(sp_FullMerg))
-gb = ensure_real_result(gbModelDS(sp_FullMerg))
-gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg))
-blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg))
-lstm = ensure_real_result(LSTMModelDS(sp_FullMerg))
-gru = ensure_real_result(GRUModelDS(sp_FullMerg))
-svr = ensure_real_result(SVRModelDS(sp_FullMerg))
-mlp = ensure_real_result(MLPModelDS(sp_FullMerg))
-cnn = ensure_real_result(CNNModelDS(sp_FullMerg))
-nsga2cnn = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg))
-nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg))
+randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False))
+xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False))
+gb = ensure_real_result(gbModelDS(sp_FullMerg,False))
+gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False))
+
+blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False))
+
+lstm  = ensure_real_result(LSTMModelDS(sp_FullMerg,False))
+gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False))
+
+svr  = ensure_real_result(SVRModelDS(sp_FullMerg,False))
+"""
+mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False))
+cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False))
+nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False))
+nsga3cnn  = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False))
 modelresults = [DecTree, randForest, xgb,gb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
+
 
 """
 DecTree = decisionTreeModelDS(sp_FullMerg)
@@ -2107,7 +2642,6 @@ nsga2cnn = NSGA2_CNN_ModelDS(sp_FullMerg)
 nsga3cnn = NSGA3_CNN_ModelDS(sp_FullMerg)
 modelresults = [DecTree,randForest,xgb,gbdt,blstm,lstm,gru,svr,mlp,cnn,nsga2cnn,nsga3cnn,]
 """
-
 BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 
 print("\nModel Ranking (Best to Worst) Daily:")
