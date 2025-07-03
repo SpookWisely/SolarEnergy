@@ -1,0 +1,66 @@
+So when looking at the comparison between my code and that of olivers the key points I've taken from his code to mine is that he:
+- Oliver Notes Comparison -
+- Does not use hyper parameters for his merged dataset models,
+- Does not use lag via the create sequences function that he uses aswell in prior model implementation,
+- When calling test train split he makes use of a 80/20 split where as mine is 70/30 split,
+- Also in relation to the test train split function he leaves shuffle set to the default which is "true" this when making use of time based features is bad practices and
+  can lead to data leakage that and far better results do that the it can have the next day in its test set making it be able to perfectly predict the next outcome.
+  so this needs to be on if lag is being done and even without since the data itself has timestamps which with shuffle will cause data leakage.
+  
+- Notes About Daily vs Monthly Vs Hourly -
+- When comparing the two different methods of monthly and daily while the results of what the best model may change overall the results tend to be much worse
+  in comparison to that of the daily time sequencing.
+- Overall in regards to the performance matrixs given from the monthly testing for example with the Final results table from the "SupplyXDemandXWeather" dataset
+  the best result is that of BLSTM and even that has a negative fitting value which I feel would be remedied with much larger dataset, For example mulitple years merged into one dataset.
+- But as it stands with the given dataframe I strong believe that 24 hour sequencing is the best approach due to the aforementioned above reasoning and the results in comparison
+  do back up this point.
+- The third approach being that of hourly, overall the results end up being slightly better than that of daily with the cost being that to performance as due to
+  the increase in size of the data from 364 blocks from daily to that 8760 alot of the models espeically the deep learning one take significantly longer to run which 
+  does impact testing.
+- Originally there was to be a fourth approach to the data sequencing of seasonally but upon testing approach I was greeted with N/A valus on even the basic model approach. 
+  which I feel was in the same vein that monthly gets much worse results to the condensing of the dataframe into 12 parts as opposed to 364 parts (Daily) and then to go even 
+  further with seasonally (4 parts) that datasets I've been given just can't done in this approach and the above mentioned solution to be able to go these routes is the same 
+  for the seasonal approach.
+
+- Differences between Solo,Partially Merged and Fully Merged -  
+- When looking at the solo dataset aka supply and demand on their own when looking at the results show that the tree based models are always in the top three for the results
+  with the order slightly differing between the datasets. But the top three being Random Forest, XGB, Gradient Boosting. With Random Forest being Best for Solo Supply 
+  and XGN for Demand. 
+- For the reasoning why this may be the case is due to the simplicity of the base datasets being just two coloumns (Date & Time, MW) makes it a better fit with the tree
+  based models?
+- Taking a similar approach to datasets being merged with the coresponding weather dataset the results start show a bit of a change in the top three for each dataset.
+  With the DemandXWeather having SVR,CNN,MLP as its top three in order. While SupplyXWeather has GBDT, SVR,XGB. 
+- Why is this the case?  
+- Finally the final combination is that of the DemandXSupplyXWeather with all the datasets being merged into one. This is where you see biggest changes in the results.
+  With the top three being CNN,MLP,BLSTM in order. The main takeaway from this is that all the models are of the deep learning category. The reason why this may the case
+  is that overall with the increase in complexity in the datasets the tree based models start to perform alot worse other than no other ideas why.
+
+- Shuffle on Vs Shuffle Off -
+- When look at prior code done with the differing combination they all seem to avoid making use of shuffle except for the last category of the fully merged dataset
+  of DemandXSupplyXWeather. With the comparison between the two results of prior code and my own results differ by a very large margin with the set having shuffle on
+  leading by massively. This has been discovered to be the result of the shuffling add in the targets of predicition in the training data so that the model effectively is
+  cheating by having the answers given to it. So in my eyes the prior results with shuffle should be ignored and all future models implementation should avoid it aswell.
+  
+- Dataset Changes - 
+- Not much has been changed to the base datasets the main difference is that of the weatherdatasets as compared to the prior projects versions there is a discrepancy
+  with some of the columns (WD10M and WS10M) not existing in the datasets chosen this time despite having same template. Tests have been done with and without these 
+  columns and the results show that with them being added into the dataset being used the overall performance all the models seemingly improves so the decision 
+  was made to make it the base line for further testing.
+  
+- Dataset Preperation Approach Notes - 
+- Overall the approach to data preperation has not changed from the prior iteration of the code base. 
+- General Data Preperation Notes -
+- When it came to all datasets few things had to be done to better prep them for models these ranged from removing empty values by convering them to "NAN"'s and emptying
+  each dataset of them and making use of interpolate to average the values for better use of the models.
+
+- But just to jot down the approachs for each dataset combation are as follows:
+
+- Solo Demand/Supply -
+- Simple import and reading of each column and the assign to the correct variables for use in the models.
+
+- DemandXWeather/SupplyXWeather -
+- With the additon of the weather dataset following methods as before merged the datasets into new ones with the combations that were required.
+
+- Full Merged DemandXSupplyXWeather -
+- Very much the same as the prior but with the additon of the changed required since the two weather datasets shared columns they had to be edited to differentiae so they
+  could both be used in the models.

@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Hourly\DemandxSupplyxWeather - Hourly.py</StartupFile>
+    <StartupFile>Daily\DemandxSupplyxWeather - Daily.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -41,6 +41,10 @@
     <Compile Include="SupplyxDemand.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Compiled Code Notes.txt" />
+    <Content Include="Graph Types\Bar.png" />
+    <Content Include="Graph Types\Dependence.png" />
+    <Content Include="Graph Types\WaterFall.png" />
     <Content Include="hourly and daily energy dataset.csv" />
     <Content Include="Oliver Test\Sakakah 2021 Demand dataset.xlsx" />
     <Content Include="Oliver Test\Sakakah 2021 PV supply dataset.xlsx" />
@@ -476,6 +480,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Daily\" />
+    <Folder Include="Graph Types\" />
     <Folder Include="Monthly\" />
     <Folder Include="Hourly\" />
     <Folder Include="Plots\DemandSolo\" />

@@ -235,17 +235,13 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame, plots:boolean):
         f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
     ]
 
-    # Debugging prints
-    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
-    print(f"Shape of X_test: {X_test.shape}")
-    print(f"Shape of shap_values: {shap_values.shape}")
 
     # Ensure compatibility
     assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+    print("Expanded Feature Columns:", expanded_feature_cols)
 
     # Plot SHAP summary
-    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
-                      
+    shap.summary_plot(shap_values, X_test, plot_type="bar", feature_names=expanded_feature_cols)
     """
     for feature, importance in sorted_features:
         print("{:<30} {:>10.4f}".format(feature, importance))  
@@ -2603,9 +2599,9 @@ def BetterModelSelectionMethod(ModelArray: list):
         if best_idx != i:
             ordered[i], ordered[best_idx] = ordered[best_idx], ordered[i]
     return ordered
-"""
-DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False))
 
+DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False))
+"""
 randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False))
 xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False))
 gb = ensure_real_result(gbModelDS(sp_FullMerg,False))
@@ -2617,13 +2613,13 @@ lstm  = ensure_real_result(LSTMModelDS(sp_FullMerg,False))
 gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False))
 
 svr  = ensure_real_result(SVRModelDS(sp_FullMerg,False))
-"""
+
 mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False))
 cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False))
 nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False))
 nsga3cnn  = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False))
 modelresults = [DecTree, randForest, xgb,gb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
-
+"""
 
 """
 DecTree = decisionTreeModelDS(sp_FullMerg)
@@ -2642,6 +2638,7 @@ nsga2cnn = NSGA2_CNN_ModelDS(sp_FullMerg)
 nsga3cnn = NSGA3_CNN_ModelDS(sp_FullMerg)
 modelresults = [DecTree,randForest,xgb,gbdt,blstm,lstm,gru,svr,mlp,cnn,nsga2cnn,nsga3cnn,]
 """
+"""
 BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 
 print("\nModel Ranking (Best to Worst) Hourly:")
@@ -2651,5 +2648,5 @@ for res in BestResultsOrdered:
     print("{:<20} {:>12.4f} {:>12.4f} {:>12.4f} {:>10.4f}".format(
         res[4], res[0], res[1], res[2], res[3]
     ))
-
+"""
 
