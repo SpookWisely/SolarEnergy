@@ -88,78 +88,7 @@ def create_sequences_with_time_3d(data, targets, seq_length):
         y.append(targets[i + seq_length])
     return np.array(X), np.array(y)
 
-def create_monthly_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
-    X, y = [], []
-    grouped = df.groupby(['year', 'month'])
-    months = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(m)[feature_cols]) for m in months[:-1]) if pad_to_max else None
-
-    for i in range(len(months) - 1):
-        this_month = grouped.get_group(months[i])
-        next_month = grouped.get_group(months[i + 1])
-
-        x_seq = this_month[feature_cols].values
-        # Pad with zeros if needed
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        y.append(next_month[target_cols].values[0])  # or customize as needed
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
-
 #----#
-def create_seasonal_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
-    # Map months to seasons
-    def month_to_season(month):
-        if month in [3, 4, 5]:
-            return 'Spring'
-        elif month in [6, 7, 8]:
-            return 'Summer'
-        elif month in [9, 10, 11]:
-            return 'Autumn'
-        else:  # 12, 1, 2
-            return 'Winter'
-
-    df['season'] = df['month'].apply(month_to_season)
-
-    # Adjust year for December, January, February to keep winters together
-    df['season_year'] = df['year']
-    df.loc[(df['month'] == 12), 'season_year'] += 1  # December belongs to next year's winter
-
-    X, y = [], []
-    grouped = df.groupby(['season_year', 'season'])
-    seasons = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(s)[feature_cols]) for s in seasons[:-1]) if pad_to_max else None
-
-    for i in range(len(seasons) - 1):
-        this_season = grouped.get_group(seasons[i])
-        next_season = grouped.get_group(seasons[i + 1])
-
-        x_seq = this_season[feature_cols].values
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        y.append(next_season[target_cols].values[0])  # or customize as needed
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
 
 
 random.seed(42)
@@ -219,7 +148,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         param_grid = {
@@ -310,7 +239,7 @@ def decisionTreeModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -427,7 +356,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -519,7 +448,7 @@ def randomForestModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -633,7 +562,7 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -726,7 +655,7 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         param_grid = {
@@ -839,7 +768,7 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool)
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -932,7 +861,7 @@ def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool)
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         param_grid = {
@@ -1053,7 +982,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         
@@ -1167,7 +1096,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         best_score = float('inf')
@@ -1300,7 +1229,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         
@@ -1414,7 +1343,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         
@@ -1548,7 +1477,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         
@@ -1662,7 +1591,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         
@@ -1975,7 +1904,7 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -2064,7 +1993,7 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -2174,7 +2103,7 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
         best_score = float('inf')
@@ -2277,7 +2206,7 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -2406,7 +2335,7 @@ def GBDTModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plot
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -2491,7 +2420,7 @@ def GBDTModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plot
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
 
-        split_index = int(len(X) * 0.8)
+        split_index = int(len(X) * 0.7)
         X_train, X_test = X[:split_index], X[split_index:]
         y_train, y_test = y[:split_index], y[split_index:]
 
@@ -2612,17 +2541,18 @@ def BetterModelSelectionMethod(ModelArray: list):
    
 ##------Demand Functions------
 
-dem_TREE = decisionTreeModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_RF = randomForestModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_XGB = xgbModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_GB = gbModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_BLSTM = biDirectionalLSTMDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_LSTM = LSTMModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_GRU = GRUModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
+dem_TREE = decisionTreeModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_RF = randomForestModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_XGB = xgbModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_GB = gbModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_BLSTM = biDirectionalLSTMDS(sp_DemandDef, sp_SupplyDef, 1,True)
+dem_LSTM = LSTMModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_GRU = GRUModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
 dem_SVR = SVRModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_MLP = MLPModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_CNN = CNNModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_GBDT = GBDTModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
+dem_MLP = MLPModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_CNN = CNNModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+dem_GBDT = GBDTModelDS(sp_DemandDef, sp_SupplyDef, 1, True)
+
 ##dem_NSGA2_CNN = NSGA2_CNN_ModelDS(sp_DemandDef, sp_SupplyDef, 1)
 ##dem_NSGA3_CNN = NSGA3_CNN_ModelDS(sp_DemandDef, sp_SupplyDef, 1)
 ##demandModelresults = [dem_TREE, dem_RF, dem_XGB, dem_GB, dem_BLSTM, dem_LSTM, dem_GRU, dem_SVR, dem_MLP, dem_CNN, dem_GBDT, dem_NSGA2_CNN, dem_NSGA3_CNN]
@@ -2638,7 +2568,7 @@ sup_GB = gbModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
 sup_BLSTM = biDirectionalLSTMDS(sp_DemandDef, sp_SupplyDef, 2,True)
 sup_LSTM = LSTMModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
 sup_GRU = GRUModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
-sup_SVR = SVRModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
+sup_SVR = SVRModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_MLP = MLPModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
 sup_CNN = CNNModelDS(sp_DemandDef, sp_SupplyDef, 2,True)
 sup_GBDT = GBDTModelDS(sp_DemandDef, sp_SupplyDef, 2,True)

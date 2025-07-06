@@ -140,50 +140,6 @@ def create_monthly_sequences(df, feature_cols, target_cols, pad_to_max=True):
     y = np.array(y)
     return X, y
 
-#----#
-def create_seasonal_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
-    # Map months to seasons
-    def month_to_season(month):
-        if month in [3, 4, 5]:
-            return 'Spring'
-        elif month in [6, 7, 8]:
-            return 'Summer'
-        elif month in [9, 10, 11]:
-            return 'Autumn'
-        else:  # 12, 1, 2
-            return 'Winter'
-
-    df['season'] = df['month'].apply(month_to_season)
-
-    # Adjust year for December, January, February to keep winters together
-    df['season_year'] = df['year']
-    df.loc[(df['month'] == 12), 'season_year'] += 1  # December belongs to next year's winter
-
-    X, y = [], []
-    grouped = df.groupby(['season_year', 'season'])
-    seasons = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(s)[feature_cols]) for s in seasons[:-1]) if pad_to_max else None
-
-    for i in range(len(seasons) - 1):
-        this_season = grouped.get_group(seasons[i])
-        next_season = grouped.get_group(seasons[i + 1])
-
-        x_seq = this_season[feature_cols].values
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        y.append(next_season[target_cols].values[0])  # or customize as needed
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
 
 def decisionTreeModelDS(mergedDs: pd.DataFrame):
     mergedDs = mergedDs.copy()
@@ -199,32 +155,10 @@ def decisionTreeModelDS(mergedDs: pd.DataFrame):
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
-    """
-    feature_cols = [
-        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
-        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S", "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
-        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M","WD10M" "hour", "day", "month"
-    ]
-    """
     feature_cols = [
     "ALLSKY_SFC_SW_DWN_S","ALLSKY_SFC_UV_INDEX_S","T2M_S","PRECTOTCORR_S","ALLSKY_KT_S",
     "CLRSKY_SFC_PAR_TOT_S","RH2M_S","PS_S","PSC_S","WS10M","WD10M","hour","day","month"
     ]
-    """
-    scaler_X = MinMaxScaler()
-    scaler_y = MinMaxScaler()
-    target_cols = ['Demand_MW', 'Supply_MW']
-    X = scaler_X.fit_transform(mergedDs[feature_cols])
-    y = scaler_y.fit_transform(mergedDs[target_cols])
-    seq_length = 24
-    X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.3, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-    """
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW','Supply_MW']

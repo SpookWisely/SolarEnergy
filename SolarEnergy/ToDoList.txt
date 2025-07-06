@@ -4,3 +4,11 @@ Do full outputs for hourly for all combinations,
 implement the different featue importance method,
 Place results in an excel file,
 Finish the code for monthly solo supply and demand,
+
+Redo the solo demand and supplys graphs and tables for all sequencing  due to mixed up split.
+
+Do 80-20 splot for all the files
+
+Feature importance part 
+
+Comment code.
