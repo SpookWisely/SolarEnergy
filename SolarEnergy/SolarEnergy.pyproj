@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>80-20\Code\Monthly\DemandxWeather - Monthly - 80-20.py</StartupFile>
+    <StartupFile>Daily\DemandxSupplyxWeather - Daily.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
