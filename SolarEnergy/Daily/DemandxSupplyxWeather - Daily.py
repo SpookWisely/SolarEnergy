@@ -2837,7 +2837,7 @@ for model_name, shap_table in compiled_shap_tables.items():
 
 BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 
-print("\nModel Ranking (Best to Worst) Hourly:")
+print("\nModel Ranking (Best to Worst) Daily:")
 print("{:<20} {:>12} {:>12} {:>12} {:>10}".format("Model", "MSE", "MAE", "RMSE", "R2"))
 print("-" * 70)
 for res in BestResultsOrdered:
