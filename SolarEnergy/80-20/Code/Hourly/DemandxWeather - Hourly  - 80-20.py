@@ -221,11 +221,6 @@ def compute_shap_values_Trees_demand(model_type, best_tree_model, X_test, featur
     if shap_values_demand is not None:
         print("\nPlotting SHAP summary for Demand...")
         shap.summary_plot(shap_values_demand, X_test, plot_type="bar", feature_names=expanded_feature_cols)
-    """
-    # Plot SHAP summary for supply
-    if shap_values_supply is not None:
-        print("\nPlotting SHAP summary for Supply...")
-        shap.summary_plot(shap_values_supply, X_test, plot_type="bar", feature_names=expanded_feature_cols)
     
     # Feature-to-lagged mapping for dependence plots
     feature_to_lagged_mapping = {
@@ -246,23 +241,10 @@ def compute_shap_values_Trees_demand(model_type, best_tree_model, X_test, featur
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
 
-    # Loop through top features for dependence plots (Supply)
-    for feature, _ in sorted_shap_values[:3]:  # Top 3 features
-        if feature in feature_to_lagged_mapping:
-            lagged_feature = feature_to_lagged_mapping[feature][0]
-            if lagged_feature in expanded_feature_cols:
-                shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test, feature_names=expanded_feature_cols
-                )
-            else:
-                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
-        else:
-            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-    """
     return shap_importance
 def compute_shap_values_Trees_supply(model_type, best_tree_model, X_test, feature_cols, seq_length):
     """
-    Computes SHAP values for the given model type and visualizes feature importance.
+    Computes SHAP values for the given model type and visualizes feature importance for supply.
     """
     shap_values_dict = {}
     expanded_feature_cols = [
@@ -293,9 +275,15 @@ def compute_shap_values_Trees_supply(model_type, best_tree_model, X_test, featur
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
 
-    # Extract SHAP values for demand and supply
-    shap_values_demand = shap_values_dict.get("Output_1", None)
-    shap_values_supply = shap_values_dict.get("Output_2", None)
+    # Extract SHAP values for supply
+    shap_values_supply = shap_values_dict.get("Output_1", None)
+    # Debugging: Print model type and SHAP values dictionary
+    print(f"Model Type: {model_type}")
+    print(f"SHAP Values Dictionary Keys: {shap_values_dict.keys()}")
+    # Check if SHAP values for supply are computed
+    if shap_values_supply is None:
+        print("SHAP values for supply could not be computed. Please check the model and data.")
+        return None
 
     # Aggregate SHAP values across outputs
     aggregated_shap_values = {}
@@ -322,35 +310,22 @@ def compute_shap_values_Trees_supply(model_type, best_tree_model, X_test, featur
     for feature, importance in sorted_shap_values:
         print("{:<30} {:>12.4f}".format(feature, importance))
 
-    # Plot SHAP summary for demand
-    if shap_values_demand is not None:
-        print("\nPlotting SHAP summary for Demand...")
-        shap.summary_plot(shap_values_demand, X_test, plot_type="bar", feature_names=expanded_feature_cols)
-    """
     # Plot SHAP summary for supply
-    if shap_values_supply is not None:
-        print("\nPlotting SHAP summary for Supply...")
-        shap.summary_plot(shap_values_supply, X_test, plot_type="bar", feature_names=expanded_feature_cols)
-    
+    print("\nPlotting SHAP summary for Supply...")
+    shap.summary_plot(shap_values_supply, X_test, plot_type="bar", feature_names=expanded_feature_cols)
+
     # Feature-to-lagged mapping for dependence plots
     feature_to_lagged_mapping = {
         feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
         for feature in feature_cols
     }
 
-    # Loop through top features for dependence plots (Demand)
-    for feature, _ in sorted_shap_values[:3]:  # Top 3 features
-        if feature in feature_to_lagged_mapping:
-            lagged_feature = feature_to_lagged_mapping[feature][0]
-            if lagged_feature in expanded_feature_cols:
-                shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test, feature_names=expanded_feature_cols
-                )
-            else:
-                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
-        else:
-            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
 
+    # Check if SHAP values for supply are computed
+    if shap_values_supply is None:
+        print("SHAP values for supply could not be computed. Please check the model and data.")
+        print("Available SHAP values outputs:", shap_values_dict.keys())
+        return None
     # Loop through top features for dependence plots (Supply)
     for feature, _ in sorted_shap_values[:3]:  # Top 3 features
         if feature in feature_to_lagged_mapping:
@@ -363,7 +338,7 @@ def compute_shap_values_Trees_supply(model_type, best_tree_model, X_test, featur
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-    """
+
     return shap_importance
 #----#
 
@@ -982,15 +957,15 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                 plt.show()
 
             plot_series(y_demand_true, y_demand_pred, 'Demand')
-            if features == True:
-                shap_importance = compute_shap_values_Trees_demand(
-                model_type="MultiOutputRegressor",
-                best_tree_model=grid_search.best_estimator_,
-                X_test=X_test,
-                feature_cols=feature_cols,
-                seq_length=seq_length
-            )
-            return results  
+        if features == True:
+            shap_importance = compute_shap_values_Trees_demand(
+            model_type="MultiOutputRegressor",
+            best_tree_model=grid_search.best_estimator_,
+            X_test=X_test,
+            feature_cols=feature_cols,
+            seq_length=seq_length
+        )
+        return results  
 
         return results
     elif (ident == 2):
@@ -1102,14 +1077,14 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                 plt.show()
 
             plot_series(y_demand_true, y_demand_pred, 'Supply')
-            if features == True:
-                shap_importance = compute_shap_values_Trees_supply(
-                model_type="MultiOutputRegressor",
-                best_tree_model=grid_search.best_estimator_,
-                X_test=X_test,
-                feature_cols=feature_cols,
-                seq_length=seq_length
-            )
+        if features == True:
+            shap_importance = compute_shap_values_Trees_supply(
+            model_type="MultiOutputRegressor",
+            best_tree_model=grid_search.best_estimator_,
+            X_test=X_test,
+            feature_cols=feature_cols,
+            seq_length=seq_length
+        )
             return results          
         return results
     else:
@@ -1319,7 +1294,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                 feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
                 for feature in feature_cols
             }   
-                """
+                
                 # Loop through top features
                 for feature, _ in top_features:
                     if feature in feature_to_lagged_mapping:
@@ -1333,7 +1308,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
                     print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                
                 return results  
         return results
     elif (ident == 2):
@@ -1486,8 +1461,6 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                 # Adjust shap_values to match the flattened structure
                 shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
 
-                # Select the SHAP values for the first output (e.g., Demand)
-                #shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
                 ##Select the SHAP values for the second output (e.g., Supply)
                 shap_values_supply = shap_values_flat[:, :, 0] 
 
@@ -1500,11 +1473,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                     )
                     for i in range(len(shap_values_dict))
             }
-                """
-                print("Shape of X_test_flat:", X_test_flat.shape)
-                print("Shape of shap_values_flat:", shap_values_flat.shape)
-                print("Shape of shap_values_demand:", shap_values_demand.shape)
-                """
+
                 assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"    
                 #assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
                 assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
@@ -1516,7 +1485,6 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                 for feature, importance in sorted_features:
                     print("{:<30} {:>12.4f}".format(feature, importance))
                 # Plot SHAP summary for the first output
-                #shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
                 shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
                 # Ensure compatibility
@@ -1525,7 +1493,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                 feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
                 for feature in feature_cols
             }   
-                """
+                
                 # Loop through top features
                 for feature, _ in top_features:
                     if feature in feature_to_lagged_mapping:
@@ -1533,13 +1501,13 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                         lagged_feature = feature_to_lagged_mapping[feature][0]
                         if lagged_feature in expanded_feature_cols:
                             shap.dependence_plot(
-                            lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                            lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
                         )
                     else:
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
-                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")       
+                
                 return results  
         return results
     else:
@@ -1744,7 +1712,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                 feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
                 for feature in feature_cols
             }   
-                """
+                
                 # Loop through top features
                 for feature, _ in top_features:
                     if feature in feature_to_lagged_mapping:
@@ -1758,7 +1726,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
                     print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                
                 return results      
         return results
     elif (ident == 2):
@@ -1945,7 +1913,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                 feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
                 for feature in feature_cols
             }   
-                """
+                
                 # Loop through top features
                 for feature, _ in top_features:
                     if feature in feature_to_lagged_mapping:
@@ -1953,13 +1921,12 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                         lagged_feature = feature_to_lagged_mapping[feature][0]
                         if lagged_feature in expanded_feature_cols:
                             shap.dependence_plot(
-                            lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                            lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
                         )
                     else:
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
-                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")       
                 return results  
         return results
     else:
@@ -1971,13 +1938,6 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
     supplyDs = supplyDs.copy()
 
    
-    """
-    Demand GRU Results -
-
-    -----
-    Supply GRU Results - 
-
-    """
     if (ident == 1):
     #----#        
     ##Basic transformation for the base dataset
@@ -2155,7 +2115,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                 # Plot SHAP summary for the first output
                 shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
                 # shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-                """
+                
                 # Ensure compatibility
                 print("Expanded Feature Columns:", expanded_feature_cols)
                 feature_to_lagged_mapping = {
@@ -2175,7 +2135,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
                     print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                
                 return results    
         return results 
     elif (ident == 2):
@@ -2360,7 +2320,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                 feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
                 for feature in feature_cols
             }
-                """
+                
                 # Loop through top features
                 for feature, _ in top_features:
                     if feature in feature_to_lagged_mapping:
@@ -2368,13 +2328,13 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                         lagged_feature = feature_to_lagged_mapping[feature][0]
                         if lagged_feature in expanded_feature_cols:
                             shap.dependence_plot(
-                            lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                            lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
                         )
                     else:
                         print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                 else:
-                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
+                    print(f"Feature {feature} not found in feature_to_lagged_mapping.")       
+                
                 return results    
         return results
     else:
@@ -2978,7 +2938,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                         # Plot SHAP summary for the first output
                         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
                         #shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-                        """
+                        
                         # Ensure compatibility
                         print("Expanded Feature Columns:", expanded_feature_cols)
                         feature_to_lagged_mapping = {
@@ -2998,7 +2958,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                         else:
                             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                        """
+                        
                         return results  
                 return results 
         elif (ident == 2):
@@ -3097,107 +3057,99 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
 
                     plot_series(y_demand_true, y_demand_pred, 'Supply')
                 if features == True:
-                        shap_values_dict = {}
-                        explainer = shap.GradientExplainer(best_model, X_train)
-                        shap_values = explainer.shap_values(X_test)
-                        expanded_feature_cols = [
-                        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-                        ]
+                    shap_values_dict = {}
+                    explainer = shap.GradientExplainer(best_model, X_train)
+                    shap_values = explainer.shap_values(X_test)
+                    expanded_feature_cols = [
+                    f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+                    ]
 
 
-                        # Compute mean absolute SHAP values for global feature importance
+                    # Compute mean absolute SHAP values for global feature importance
+                    mean_shap_values = np.abs(shap_values).mean(axis=0)
+                    mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+                    mean_shap_values = mean_shap_values.flatten()
+                    # Identify top 3 features
+                    top_features = sorted(
+                            zip(feature_cols, mean_shap_values),
+                            key=lambda x: x[1],
+                            reverse=True
+                        )[:3]
+                    # Print feature importance for this output
+                    for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+                        print(f"{feature:<30} {importance:.4f}")
+
+                    # Prepare SHAP importance with adjusted SHAP values
+                    shap_importance = {
+                        f"Output_{i + 1}": sorted(
+                            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+                            key=lambda x: x[1],
+                            reverse=True
+                        )
+                        for i in range(len(shap_values_dict))
+                }
+
+                    # Loop through each output (e.g., Demand and Supply)
+                    for i, shap_value in enumerate(shap_values):
+                        print(f"\nComputing SHAP values for output {i + 1}...")
                         mean_shap_values = np.abs(shap_values).mean(axis=0)
-                        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
-                        mean_shap_values = mean_shap_values.flatten()
-                        # Identify top 3 features
-                        top_features = sorted(
-                                zip(feature_cols, mean_shap_values),
-                                key=lambda x: x[1],
-                                reverse=True
-                            )[:3]
-                        # Print feature importance for this output
-                        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
-                            print(f"{feature:<30} {importance:.4f}")
+                        # Store SHAP values in the dictionary
+                        shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-                        # Prepare SHAP importance with adjusted SHAP values
-                        shap_importance = {
-                            f"Output_{i + 1}": sorted(
-                                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
-                                key=lambda x: x[1],
-                                reverse=True
-                            )
-                            for i in range(len(shap_values_dict))
+                    # Prepare SHAP values for return
+                    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+
+                    # Adjust shap_values to match the flattened structure
+                    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+
+                    ##Select the SHAP values for the second output (e.g., Supply)
+                    shap_values_supply = shap_values_flat[:, :, 0] 
+                    # Prepare SHAP importance with adjusted SHAP values
+                    shap_importance = {
+                        f"Output_{i + 1}": sorted(
+                            zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+                            key=lambda x: x[1],
+                            reverse=True
+                        )
+                        for i in range(len(shap_values_dict))
                     }
 
-                        # Loop through each output (e.g., Demand and Supply)
-                        for i, shap_value in enumerate(shap_values):
-                            print(f"\nComputing SHAP values for output {i + 1}...")
-                            mean_shap_values = np.abs(shap_values).mean(axis=0)
-                            # Store SHAP values in the dictionary
-                            shap_values_dict[f"Output_{i + 1}"] = shap_value
+                    assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+    
+                    assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-                        # Prepare SHAP values for return
-                        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+    
+                    mean_shap_values = np.array(mean_shap_values).flatten()
+                    # Sort features by importance in descending order
+                    sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-                        # Adjust shap_values to match the flattened structure
-                        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
-
-                        # Select the SHAP values for the first output (e.g., Demand)
-                        #shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-                        ##Select the SHAP values for the second output (e.g., Supply)
-                        shap_values_supply = shap_values_flat[:, :, 0] 
-                        # Prepare SHAP importance with adjusted SHAP values
-                        shap_importance = {
-                            f"Output_{i + 1}": sorted(
-                                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
-                                key=lambda x: x[1],
-                                reverse=True
+                    # Print each feature and its importance
+                    for feature, importance in sorted_features:
+                        print("{:<30} {:>12.4f}".format(feature, importance))
+                    # Plot SHAP summary for the first output
+                    shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
+                        
+                    # Ensure compatibility
+                    print("Expanded Feature Columns:", expanded_feature_cols)
+                    feature_to_lagged_mapping = {
+                    feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+                    for feature in feature_cols
+                    }
+                    # Loop through top features
+                    for feature, _ in top_features:
+                        if feature in feature_to_lagged_mapping:
+                            # Use the first time-lagged version of the feature for the dependence plot
+                            lagged_feature = feature_to_lagged_mapping[feature][0]
+                            if lagged_feature in expanded_feature_cols:
+                                shap.dependence_plot(
+                                lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
                             )
-                            for i in range(len(shap_values_dict))
-                        }
-                        """
-                        print("Shape of X_test_flat:", X_test_flat.shape)
-                        print("Shape of shap_values_flat:", shap_values_flat.shape)
-                        print("Shape of shap_values_demand:", shap_values_demand.shape)
-                        """
-                        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-    
-                        #assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-                        assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
-
-    
-                        mean_shap_values = np.array(mean_shap_values).flatten()
-                        # Sort features by importance in descending order
-                        sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
-
-                        # Print each feature and its importance
-                        for feature, importance in sorted_features:
-                            print("{:<30} {:>12.4f}".format(feature, importance))
-                        # Plot SHAP summary for the first output
-                        #shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-                        shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-                        """
-                        # Ensure compatibility
-                        print("Expanded Feature Columns:", expanded_feature_cols)
-                        feature_to_lagged_mapping = {
-                        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-                        for feature in feature_cols
-                        }
-                        # Loop through top features
-                        for feature, _ in top_features:
-                            if feature in feature_to_lagged_mapping:
-                                # Use the first time-lagged version of the feature for the dependence plot
-                                lagged_feature = feature_to_lagged_mapping[feature][0]
-                                if lagged_feature in expanded_feature_cols:
-                                    shap.dependence_plot(
-                                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                                )
-                            else:
-                                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
                         else:
-                            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                        """
-                        return results  
+                            print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+                    else:
+                        print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+                        
+                    return results  
                 return results
         else:
                 print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -3206,13 +3158,7 @@ def MLPModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
 def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool,features:bool):
     demandDs = demandDs.copy()
     supplyDs = supplyDs.copy()
-    """
-    Demand CNN Results -
 
-    -----
-    Supply CNN Results - 
-
-    """
 
     if ident == 1:
         #----#        
@@ -3599,7 +3545,7 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
             for feature in feature_cols
         }
-        """
+        
             # Loop through top features
             for feature, _ in top_features:
                 if feature in feature_to_lagged_mapping:
@@ -3607,15 +3553,14 @@ def CNNModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                     lagged_feature = feature_to_lagged_mapping[feature][0]
                     if lagged_feature in expanded_feature_cols:
                         shap.dependence_plot(
-                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
                     )
-                    
                 else:
                     print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
             else:
-                print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-                """
-        return results        
+                print(f"Feature {feature} not found in feature_to_lagged_mapping.")       
+                
+            return results        
         return results
 
     else:
@@ -3981,15 +3926,14 @@ for res in demandBestResultsOrdered:
 #sup_LSTM = LSTMModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
 #sup_GRU = GRUModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
 #sup_SVR = SVRModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
-sup_MLP = MLPModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
-
+#sup_MLP = MLPModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
 sup_CNN = CNNModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
 sup_GBDT = GBDTModelDS(sp_WeatherxDem,sp_WeatherxSup,2,False,True)
 """
 #sup_NSGA2_CNN = NSGA2_CNN_ModelDS(sp_WeatherxDem,sp_WeatherxSup,2) 
 #sup_NSGA3_CNN = NSGA3_CNN_ModelDS(sp_WeatherxDem,sp_WeatherxSup,2) 
 ##supplyModelresults = [sup_TREE, sup_RF, sup_XGB, sup_GB, sup_BLSTM,sup_LSTM, sup_GRU, sup_SVR, sup_MLP, sup_CNN,sup_GBDT, sup_NSGA2_CNN,sup_NSGA3_CNN]
-
+ 
 supplyModelresults = [sup_TREE, sup_RF, sup_XGB, sup_BLSTM,sup_LSTM, sup_GRU, sup_SVR, sup_MLP, sup_CNN,sup_GBDT]
 supplyBestResultsOrdered = BetterModelSelectionMethod(supplyModelresults)
 

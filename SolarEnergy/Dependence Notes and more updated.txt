@@ -1,0 +1,74 @@
+Updated Notes -
+This is just shorthand will need to be redone if its needed to put in the proper document.
+
+Feature Importance Notes -
+
+Dependence Graphs -
+Current implementation is that when running the regular shap importance calculation I take the top 3 values from the output and parse them individually into their own
+dependence graphs.
+
+The logic for these graphs is as follows 
+
+X-Axis - Represents the values of the feature placed in said axis.
+Y-Axis - This is represents the combination of the values of said feature and its contribution 
+to the models prediction.
+Opposite Y-Axis - This usually shows another feature that interacts with the mirroring feature this
+is displayed via the coloring of the dots usually as the logic follows Red is more prevelant
+and blue is less so.
+--
+Graph Outputs -
+When looking at the overall results of importance they do differ by quite a large margin on a model
+by model basis. Also differing with the different combinations of the datasets that were 
+observed (SupplyXweather,DemandXweather and Fully Merged)so the notes will be grouped by said combations.
+
+The parameters of the running of these tests were as follows:
+- All used hyper parameters.
+- All used an 80/20 split on the test_train_split.
+- All were based on hourly lagging.
+
+This was done to keep the testing on as even playing field as possible.
+
+
+_Fully Merged_ 
+~~~~~~~~~~~~~~
+- First aspect taken away from looking at the graphs with this combation of datasets including the 
+features from both supply and demand weather we see that supplys weather features are 
+much more prominent in the upper echelons of the results with this also being the case in the demand
+feature importance graphs. Though there are some exceptions to the rule these models being 
+MLP,GBDT and NSGA2-CNN. So out of 11 total models in this combination this pattern ends up being the
+majority.
+--
+- When comparng the two resulting graphs we can see that the demand predictions have a wide 
+feature importance range. While supply is the opposite with some graphs only really having two prominent
+features for example with the "Decision Tree" model, We see the difference in play where the demand feature
+importance graph having around 11 features that have a prominent role in the prediciton. While supply only has two
+of "CLRSKY_SFC_PAR_TOT_S_t-1" and "ALLSKY_SFC_SW_DWN_S_t-1". While this is the most extreme case you can see overall
+that demand graph results are more populated than the supply.
+--
+- When looking at the dependence relationship on the top 3 features of each importance graph we can see that 
+that the most popular dependence is that on the hour feature. With some others ones occuring though an interesting
+observation is that some demand based weather features have a slight dependence on a supply version and vice versa 
+and even so these other features may not even have high performance themselves which speaks to the side of keeping 
+them in for further testing.
+--
+~~~~~~~~~~~~~~
+_General Notes for Demand/SupplyXWeather_
+~~~~~~~~~~~~~~
+-Compared to the fully merged when looking at the top 3 results we can see the time based features tend to make
+much appearances with supply having 5 out of 10 having either month or hour in the top 3 while demand has the
+8 out of 10.
+--
+- The difference between the supply and demand importance graphs carries over to these combinations as well
+with supply having less depth and range than that of the demand on the same model.
+--
+- The depenence logic stays the same aswell with both supply and demands top features making use of time based
+features to help in their predictions. Though with the ommision of no cross dependence since the weather features
+are seperate this time.
+~~~~~~~~~~~~~~
+_To Do_
+~~~~~~~~~~~~~~
+- What specific reasons are there for why the top models are at the top models technical and datasets info.
+- Maybe Test out with limited features based on the feature importance (This might be more time consuming 
+than its worth)
+
+~~~~~~~~~~~~~~

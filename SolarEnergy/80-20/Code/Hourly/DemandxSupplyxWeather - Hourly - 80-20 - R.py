@@ -1080,7 +1080,7 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         for feature in feature_cols
     }
         # Loop through top features
-        """
+        
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
                 # Use the first time-lagged version of the feature for the dependence plot
@@ -1106,7 +1106,7 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-        """
+        
         return results  
     return results
 
@@ -1340,7 +1340,19 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         
-        return results, sorted_features        
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+        return results    
     return results
 
 
@@ -1490,8 +1502,8 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     if features == True:
         shap_values_dict = {}
         # Use KernelExplainer for SVR
-        explainer = shap.KernelExplainer(grid.predict, X_train[:10])  # Use a subset of X_train for efficiency
-        shap_values = explainer.shap_values(X_test[:10])  # Compute SHAP values for a subset of X_test
+        explainer = shap.KernelExplainer(grid.predict, X_train[:100])  # Use a subset of X_train for efficiency
+        shap_values = explainer.shap_values(X_test[:100])  # Compute SHAP values for a subset of X_test
 
         expanded_feature_cols = [
             f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
@@ -1529,7 +1541,7 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
         # Prepare SHAP values for return
-        X_test_flat = X_test[:10].reshape(X_test[:10].shape[0], -1)  # Flatten the subset of X_test
+        X_test_flat = X_test[:100].reshape(X_test[:10].shape[0], -1)  # Flatten the subset of X_test
 
         # Adjust shap_values to match the flattened structure
         shap_values_flat = np.array(shap_values).reshape(len(shap_values), -1)  # Flatten SHAP values
@@ -1538,7 +1550,7 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         shap_values_demand = shap_values_flat[:, :len(expanded_feature_cols)]  # Adjust to match feature columns
 
         ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
+        shap_values_supply = shap_values_flat[:, :len(expanded_feature_cols)]  
         # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
@@ -1590,7 +1602,19 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             else:
                 print(f"Feature {feature} not found in feature_to_lagged_mapping.")
 
-        return results, sorted_features        
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+        return results 
     return results
 
 
@@ -1814,6 +1838,18 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         return results       
     return results
 
@@ -2064,7 +2100,19 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         
-        return results, sorted_features        
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")        
+        return results        
     return results
 
 
@@ -2517,7 +2565,7 @@ def NSGA2_CNN_ModelDS(
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        """
+     
         # Feature-to-lagged mapping for dependence plots
         feature_to_lagged_mapping = {
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
@@ -2536,8 +2584,19 @@ def NSGA2_CNN_ModelDS(
                     print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
             else:
                 print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-        """
-        return results, sorted_features    
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")       
+        return results 
     return results    
 
 def NSGA3_CNN_ModelDS(
@@ -2845,7 +2904,7 @@ def NSGA3_CNN_ModelDS(
         # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-        """
+        
         # Feature-to-lagged mapping for dependence plots
         feature_to_lagged_mapping = {
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
@@ -2864,8 +2923,19 @@ def NSGA3_CNN_ModelDS(
                     print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
             else:
                 print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-        """
-        return results, sorted_features    
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                # Use the first time-lagged version of the feature for the dependence plot
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")        
+        return results
     return results
 
 
@@ -2953,22 +3023,24 @@ cnn,Shap_CNN  = ensure_real_result(CNNModelDS(sp_FullMerg,True,True))
 nsga2cnn,Shap_NSGA2CNN  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,True,True))
 nsga3cnn,Shap_NSGA3CNN = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,True,True))
 """
-"""
-DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,True))
-randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,True))
-xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,True))
-gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False,True))
 
-blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False,True))
-lstm= ensure_real_result(LSTMModelDS(sp_FullMerg,False,True))
-gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False,True))
-#svr = ensure_real_result(SVRModelDS(sp_FullMerg,False,False))
-mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False,True))
-"""
-cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False,True))
-nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False,True))
-nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,True,True))
-#modelresults = [DecTree, randForest, xgb,gb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
+#DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,True))
+#randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,True))
+#xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,True))
+#gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False,True))
+
+#blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False,True))
+
+#lstm= ensure_real_result(LSTMModelDS(sp_FullMerg,False,True))
+
+#gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False,True))
+#svr = ensure_real_result(SVRModelDS(sp_FullMerg,False,True))
+#mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False,True))
+#cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False,True))
+#nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False,True))
+nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False,True))
+modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, #svr, 
+                mlp, cnn, nsga2cnn, nsga3cnn]
 #for feature, importance in Shap_DecTree["Sorted Feature Importance"]:
 #    print(f"{feature:<30} {importance:.4f}"
 """
@@ -2993,7 +3065,7 @@ for model_name, shap_table in compiled_shap_tables.items():
     print(f"\nSHAP Values for {model_name}:")
     print(shap_table)
 """
-"""
+
 BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 
 print("\nModel Ranking (Best to Worst) Hourly:")
@@ -3003,5 +3075,5 @@ for res in BestResultsOrdered:
     print("{:<20} {:>12.4f} {:>12.4f} {:>12.4f} {:>10.4f}".format(
         res[4], res[0], res[1], res[2], res[3]
     ))
-"""
+
 
