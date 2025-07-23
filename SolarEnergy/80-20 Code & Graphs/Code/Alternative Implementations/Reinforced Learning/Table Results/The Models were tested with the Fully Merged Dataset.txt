@@ -1,0 +1,5 @@
+The parameters followed the same format as before being:
+Hourly,
+Fully Merged Dataset with all files and features merged into one dataset,
+80/20 split,
+General Hyperparameters
