@@ -1,0 +1,27 @@
+So when looking at the top 3 of the model results for the fully merged dataset, The takeaways from the classification reports are:
+
+LSTM - 
+Overall Demand had the better result in regards to overall accuracy of 69% this was taken from the rather wide spread of results in the
+differing classes ranging from 0 - 6. With Demand having no result in class of 0. With it picking up at class 1 and slowly 
+increasing to its peak at class 2 and then slowly decreasing again to class 6. 
+
+Supply on the other hand had a poorer result than demand with an overall accuracy of 57%. Class 0 is where it peaked in regards to
+most of it the results the lower recall values are likely explained due the much larger amount of occurrences of the class in the
+dataset. After class 0 the results had a very large drop off in quality.
+
+
+BLSTM -
+The logic of the results for BLSTM are very similar to of the LSTM results if not the same. In regards to the pattern of the results
+but the overall accuracy does differ for both demand and supply with demand having an overall accuracy of 76% and supply having 62%
+GRU - 
+So when looking at the GRU results with an overall accuracy of 72% for demand and 74% for supply. Upon reach these results the actual spread may be in fact due to the
+datasets themselves as opposed to the model fittings of the data.
+
+Importance Changes -
+When looking at the overall changes to the results in the new file which is taking into account the shap values outputted for each model and
+then edited the features their feature list to reflect the top 3 for both supply and demand. The results of the table showcase that
+all facets of the performance matrix for each model that was changed has improved though the ordering of the top 3 models has not changed.
+
+Which essentially already proves what we thought would the be case if the shap values were used to adjust the feature list for each model.
+But it is is nice to have concrete proof of the theory.
+

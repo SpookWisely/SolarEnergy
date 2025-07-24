@@ -344,11 +344,11 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\RF\Classification - RF - Sup.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\XGB\Classification - XGB - Dem.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\XGB\Classification - XGB - Sup.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Hourly Importance Implemented\Feature Importance Implemented Results\Final Results Tables\Final Results Table Hourly - Importance Implemented.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\Table Results\Reinforced Learning Results Table - Combined.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\Table Results\Reinforced Learning Results Table - Demand.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\Table Results\Reinforced Learning Results Table - Supply.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\The Models were tested with the Fully Merged Dataset.txt" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\Final Results Tables\Final Results Table Hourly - Importance Implemented.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Combined.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Demand.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Supply.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\The Models were tested with the Fully Merged Dataset.txt" />
     <Content Include="Notes\Compiled Code Notes.txt" />
     <Content Include="Notes\Dependence Notes and more updated.txt" />
     <Content Include="Datasets\Sakakah 2021 Demand dataset.xlsx" />
@@ -1025,6 +1025,7 @@
     <Content Include="70-30 Plots\SupplyXWeather\Monthly\SupW-Monthly-XGB.png" />
     <Content Include="Datasets\Sakakah 2021 weather dataset Demand.xlsx" />
     <Content Include="Datasets\Sakakah 2021 weather dataset.xlsx" />
+    <Content Include="Notes\Classifcation Notes and Importance Changes.txt" />
     <Content Include="Notes\ToDoList.txt" />
     <Content Include="Datasets\Weather for demand 2018.xlsx" />
     <Content Include="Datasets\weather for solar 2021.xlsx" />
@@ -1054,6 +1055,7 @@
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\" />
+    <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplySolo\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Monthly\" />
@@ -1065,7 +1067,7 @@
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Daily\" />
-    <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Hourly Importance Implemented\Feature Importance Implemented Results\" />
+    <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\BLSTM\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\CNN\" />
@@ -1078,7 +1080,7 @@
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\NSGA3-CNN\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\RF\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\XGB\" />
-    <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Hourly Importance Implemented\Feature Importance Implemented Results\Final Results Tables\" />
+    <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\Final Results Tables\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Hourly\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Monthly\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\" />
@@ -1089,8 +1091,8 @@
     <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Hourly Importance Implemented\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\" />
-    <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\" />
-    <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\Table Results\Table Results\" />
+    <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\" />
+    <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\" />
     <Folder Include="Datasets\" />
     <Folder Include="Deprecated Code\" />
     <Folder Include="Notes\" />
