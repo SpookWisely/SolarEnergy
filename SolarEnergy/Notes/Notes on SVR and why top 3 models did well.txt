@@ -1,0 +1,69 @@
+Why is SVR performing so badly? -
+So when talking about the lagging the current best results come from the "hourly" lagging with the seqeuence length being equal to one. Technically this isn't lagging
+as its akin to the same of the not having laggin at all as it just takes it one hour at a time to do the prediction. So SVR performs badly in the essentially "No Lag"
+configuration. But runs even worse with the 24 (Daily) lagging. 
+
+I've tested to see if I can do a small bit of lagging with the length equal to three as I ran into issues with it set to two. The results of following this line
+of enquiry essentially showed that no lag approach (hourly) is still coming on top. But the three sequence length is still an overall improvement when compared
+to daily so that is worth consideration. 
+
+For a more model specific reason for SVRs poor performance it is mainly related to the fact that SVR does not do well with large amount of features(High Dimensionality)
+so the scatter method we've taken into placing all the features at once and then whittling it down till you get the best set of the top 3 features for 
+both supply and demand even when using this set of features we end up with actually worse results with SVR specifically despite every other model having an 
+improvement in overall results.
+
+--Why Are the Top 3 the Top 3?-- 
+So first to look at when talking the top 3 model is what approach was taken for the measuring of the models success. Firstly this was done via a "Performance Matrix",
+which contain 4 different aspects these in order were: MSE ( Mean Squared Error), MAE (Mean Absolute Error), RMSE (Root Mean Sqaure Error) and R2 (Coefficient Of Determination).
+
+The first three metrics of the matrix (MSE,MAE & RMSE) follow the same logic when grading what is a better result. This is that the lowest of the values in these categories
+is the better one in direct comparison between models. The reasoning behind this is that the lower the value represents a higher accuracy of a regression model in its predictions and
+close they are to the true values that were inputted for the model to make its predictions.
+
+Finally we have R2 (Coefficient Of Determination) which is related to the fitting of the model to the data. The score is given between a range of 0 to 1 with 0 being absolute worst and 1 being perfect.
+So the logic is the closer the resuting R2 score is to 1 the better is. While looking at the other metrics R2 can have a much higher degree of importance as in if the other three metrics are better but
+the R2 score very bad essentially disregards those more positive results for a model that has better fitting as it was more capable of capturing the data underlying pattersn and logic in its predictions. 
+
+Reference "Final Results Table FullyMerged - Hourly - 80-20.PNG"
+
+As shown in the figure(?) above the results were all stored in a table based format that sorted all the results on a scoring system based on the logic as mentioned above and we've taken the top three
+resulting models to be look at in more depth.
+
+So when looking at the top three models in the most comprehensive combination (Fully Merged). We have (LSTM,GRU and BLSTM in that descending order). 
+So the main the aspect is that LSTM and GRU are very proficient in the handling of time based data this is brought up in the offical 
+documentation in such quotes as[1] "LSTM is well-suited to classify, process, and predict time series given time lags of unknown duration." & [2]"The gating units in GRU adaptively capture dependencies of 
+different time scales without the need to use separate memory cells.". - Expand alittle more
+
+For the other reasons as to why LSTM comes on top is mentioned [3] "The long short-term memory (LSTM) overcomes the error back-flow problems, by enforcing constant error flow through internal states of special units."
+This backs up the point of the LSTM model being able to resolve the "Vanishing Gradient Problem" which is related to the issue that stems from multiplying the gradient
+in the layers of neural network. This can lead few issues mainly poor performance and slow learning. So with this being addressed by these LSTM illustrates another reason
+why LSTM ended up being the very best in the performance matrix results table.
+
+An additional area to look over is the runner up models in seccond and third placement. In seccond place we have BLSTM which makes sense being that LSTM was the highest performer BLSTM shouldn't be far behind the main difference in BLSTM to BLSTM in relation to how this specific use case is 
+that BLSTM [5]"Wraps another layer to make it bidirectional. For example, Bidirectional(LSTM(10)) will create a bidirectional LSTM layer.". Which extends the capabilities of a regular LSTM to be as the name
+bidirectonal as in being able to go both ways in the layers. Also since the [6]Bidirectional nature of the model it allows the model to capture both the past and future context of the data its working and
+as this data is time based is a rather large boon to its ability to make accurate predictions.
+
+In third place We have GRU while this does have very close results to LSTM but albeit slightly worse. GRU does have less computational
+cost when running. This is related to the fact that [4]"GRU is similar to an LSTM but has fewer parameters, making it faster to train and slightly less prone to overfitting.". With less parameters to go over 
+it ends up being more efficent with the overall loss in value being negligiable. So this must also be taken consideration when making a final choice on what is the best model for solar power generation prediction.
+
+Since we've dicussed the importance of R2 in regards to the performance matrix and the overall grading of the model. It would be prudent to mention the model with the highest scoring 
+fitting overall would end being the model of "NSGA-III CNN". This model is a base of a CNN with the NSGA-III optimiser so the base model of CNN came in fourth overall in the results.
+But when looking at the optimised version its other three aspects of the performance matrix (MSE,MAE & RMSE) it scored worse overall coming at 7th place out of 12. So will just be investigating
+why the R2 is so high if not an anomalous result. 
+
+In regards to the offical documentation and litrature we can see specifically why the optimser has higher R2 value and this 
+
+
+
+[1] - TensorFlow, 2025. LSTM Layer Documentation. TensorFlow API Documentation. Available at: https://www.tensorflow.org/api_docs/python/tf/keras/layers/LSTM [Accessed 26 July 2025].
+[2] - Cho, K., Van Merriënboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H. and Bengio, Y., 2014. Learning phrase representations using RNN encoder-decoder for statistical machine translation. arXiv preprint arXiv:1406.1078. Available at: https://arxiv.org/abs/1406.1078 [Accessed 27 July 2025].
+[3] - Hochreiter, S. and Schmidhuber, J., 1997. Long short-term memory. Neural computation, 9(8), pp.1735-1780. Available at: https://www.bioinf.jku.at/publications/older/2604.pdf [Accessed 27 July 2025].
+[4] - TensorFlow, 2025. GRU Layer Documentation. TensorFlow API Documentation. Available at: https://www.tensorflow.org/api_docs/python/tf/keras/layers/GRU [Accessed 28 July 2025].
+[5] - Schuster, M. and Paliwal, K.K., 1997. Bidirectional recurrent neural networks. IEEE Transactions on Signal Processing, 45(11), pp.2673-2681. Available at: https://arxiv.org/abs/1508.04025 [Accessed 28 July 2025].
+[6] - TensorFlow, 2025. LSTM Layer Documentation. TensorFlow API Documentation. Available at: https://www.tensorflow.org/api_docs/python/tf/keras/layers/LSTM [Accessed 28 July 2025].
+[7] - 
+[8] -
+[9] -
+[10] -

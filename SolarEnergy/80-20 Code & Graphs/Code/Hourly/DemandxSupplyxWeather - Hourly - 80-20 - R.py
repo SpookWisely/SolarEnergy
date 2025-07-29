@@ -92,7 +92,9 @@ sp_FullMerg.dropna(inplace=True)
 #threshold calculation for the classification report which ended up being :•	[112.21, 187.74, 237.23, 313.32, 397.67]
 #print(sp_FullMerg['Demand_MW'].describe())
 #print(sp_FullMerg['Supply_MW'].describe())
-
+random.seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
 #------#
 """
 tuner_subdirs = [
@@ -2826,7 +2828,7 @@ def NSGA3_CNN_ModelDS(
     mae = mean_absolute_error(all_true, all_pred)
     rmse = np.sqrt(mse)
     r2 = r2_score(all_true, all_pred)
-    modelName = "NSGA-II CNN"
+    modelName = "NSGA-III CNN"
     results = [mse, mae, rmse, r2, modelName]
 
     print('\n', "NSGA-II CNN Model Results:")
@@ -3056,9 +3058,9 @@ nsga2cnn,Shap_NSGA2CNN  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,True,
 nsga3cnn,Shap_NSGA3CNN = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,True,True))
 """
 
-#DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,False))
-#randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,False))
-#xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,False))
+DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,False))
+randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,False))
+xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,False))
 gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False,False))
 blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False,False))
 lstm= ensure_real_result(LSTMModelDS(sp_FullMerg,False,False))
@@ -3093,7 +3095,7 @@ for model_name, shap_table in compiled_shap_tables.items():
     print(f"\nSHAP Values for {model_name}:")
     print(shap_table)
 """
-"""
+
 BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 
 print("\nModel Ranking (Best to Worst) Hourly:")
@@ -3104,4 +3106,3 @@ for res in BestResultsOrdered:
         res[4], res[0], res[1], res[2], res[3]
     ))
 
-"""

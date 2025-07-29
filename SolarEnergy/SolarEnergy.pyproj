@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>80-20 Code &amp; Graphs\Code\Alternative Implementations\Reinforced Learning\DemandxSupplyxWeather- Reinforced - Hourly - 80-20 - R.py</StartupFile>
+    <StartupFile>80-20 Code &amp; Graphs\Code\Hourly\DemandxSupplyxWeather - Hourly - 80-20 - R.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -21,6 +21,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Seq - 3\DemandxSupplyxWeather - Seq 3 - 80-20 - R.py" />
     <Compile Include="80-20 Code &amp; Graphs\Code\Daily\DemandSolo&amp;SupplySolo - 80-20.py" />
     <Compile Include="80-20 Code &amp; Graphs\Code\Daily\DemandxSupplyxWeather - Daily - 80-20.py" />
     <Compile Include="80-20 Code &amp; Graphs\Code\Daily\DemandxWeather&amp;SupplyxWeather  - Daily  - 80-20.py" />
@@ -155,6 +156,7 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-XGB.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Final Results Table SupplyXWeather - Daily - 80-20.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\Folder Structure.txt" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\Final Results Tables\Final Results Table - Importance.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Final Results Table DemandSolo - Hourly - 80-20.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Hrly-Dem-SVR-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Hrly-Dem-SVR.png" />
@@ -344,7 +346,6 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\RF\Classification - RF - Sup.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\XGB\Classification - XGB - Dem.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\XGB\Classification - XGB - Sup.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\Final Results Tables\Final Results Table Hourly - Importance Implemented.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Combined.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Demand.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\Reinforced Learning Results Table - Supply.PNG" />
@@ -1026,6 +1027,7 @@
     <Content Include="Datasets\Sakakah 2021 weather dataset Demand.xlsx" />
     <Content Include="Datasets\Sakakah 2021 weather dataset.xlsx" />
     <Content Include="Notes\Classifcation Notes and Importance Changes.txt" />
+    <Content Include="Notes\Notes on SVR and why top 3 models did well.txt" />
     <Content Include="Notes\ToDoList.txt" />
     <Content Include="Datasets\Weather for demand 2018.xlsx" />
     <Content Include="Datasets\weather for solar 2021.xlsx" />
@@ -1066,6 +1068,7 @@
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Monthly\SupplyXWeather\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\" />
+    <Folder Include="80-20 Code &amp; Graphs\Code\Alternative Implementations\Seq - 3\" />
     <Folder Include="80-20 Code &amp; Graphs\Code\Daily\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\" />
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Importance Implemented Classifications\" />

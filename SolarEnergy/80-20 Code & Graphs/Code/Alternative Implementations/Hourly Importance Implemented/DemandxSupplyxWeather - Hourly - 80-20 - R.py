@@ -46,7 +46,9 @@ pd.set_option('display.max_rows', None)
 duplicate the weather data
 with ALLSKY_SFC_SW_DWN ending up as ALLSKY_SFC_SW_DWN_x/ALLSKY_SFC_SW_DWN_y as an example.
 """
-
+random.seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
 sp_DemandDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Datasets\Sakakah 2021 Demand dataset.xlsx")
 sp_SupplyDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Datasets\Sakakah 2021 PV supply dataset.xlsx")
 sp_WeatherDef = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Datasets\weather for solar NEW 2021.xlsx")
@@ -753,7 +755,7 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             for i in range(len(shap_values_dict))
     }
 
-        # Loop through each output (e.g., Demand and Supply)
+        # Loop through each output (Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
@@ -1364,10 +1366,8 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
     feature_cols = [
-        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
-        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
-        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
-        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
+         "ALLSKY_SFC_UV_INDEX_S","WS10M_S",
+         "hour", "day", "month"
     ]
     """
     Merged SVR Model Results: - With below sequence creation method
@@ -1480,8 +1480,8 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     if features == True:
         shap_values_dict = {}
         # Use KernelExplainer for SVR
-        explainer = shap.KernelExplainer(grid.predict, X_train[:100])  # Use a subset of X_train for efficiency
-        shap_values = explainer.shap_values(X_test[:100])  # Compute SHAP values for a subset of X_test
+        explainer = shap.KernelExplainer(grid.predict, X_train[:10])  # Use a subset of X_train for efficiency
+        shap_values = explainer.shap_values(X_test[:10])  # Compute SHAP values for a subset of X_test
 
         expanded_feature_cols = [
             f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
@@ -1519,7 +1519,7 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
         # Prepare SHAP values for return
-        X_test_flat = X_test[:100].reshape(X_test[:10].shape[0], -1)  # Flatten the subset of X_test
+        X_test_flat = X_test[:10].reshape(X_test[:10].shape[0], -1)  # Flatten the subset of X_test
 
         # Adjust shap_values to match the flattened structure
         shap_values_flat = np.array(shap_values).reshape(len(shap_values), -1)  # Flatten SHAP values
@@ -2762,7 +2762,7 @@ def NSGA3_CNN_ModelDS(
     mae = mean_absolute_error(all_true, all_pred)
     rmse = np.sqrt(mse)
     r2 = r2_score(all_true, all_pred)
-    modelName = "NSGA-II CNN"
+    modelName = "NSGA-III CNN"
     results = [mse, mae, rmse, r2, modelName]
 
     print('\n', "NSGA-II CNN Model Results:")
@@ -3007,6 +3007,7 @@ nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False,False))
 modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, svr,mlp, cnn, nsga2cnn, nsga3cnn]
 #for feature, importance in Shap_DecTree["Sorted Feature Importance"]:
 #    print(f"{feature:<30} {importance:.4f}"
+
 """
 models_with_shap = [
     ("Decision Tree", Shap_DecTree),
