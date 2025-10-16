@@ -33,11 +33,6 @@ from deap import base, creator, tools, algorithms
 import random
 import multiprocessing
 
-##Questions to ask Tomorrow 
-"""
-1. Should I look into adding lag into the supply dataset aspects of the method as its results for MSE specifically are wildly different
-  to that of Demand dataset results.
-"""
 """
 tuner_subdirs = [
     'tuner_dir/blstm_tuning',
@@ -87,34 +82,6 @@ def create_sequences_with_time_3d(data, targets, seq_length):
         X.append(data[i:i + seq_length])
         y.append(targets[i + seq_length])
     return np.array(X), np.array(y)
-
-def create_monthly_sequences(df, feature_cols, target_cols, pad_to_max=True):
-    df = df.copy()
-    df['TimeStamp'] = pd.to_datetime(df['TimeStamp'])
-    df['year'] = df['TimeStamp'].dt.year
-    df['month'] = df['TimeStamp'].dt.month
-
-    X, y = [], []
-    grouped = df.groupby(['year', 'month'])
-    months = sorted(grouped.groups.keys())
-
-    max_len = max(len(grouped.get_group(m)[feature_cols]) for m in months[:-1]) if pad_to_max else None
-
-    for i in range(len(months) - 1):
-        this_month = grouped.get_group(months[i])
-        next_month = grouped.get_group(months[i + 1])
-
-        x_seq = this_month[feature_cols].values
-        # Pad with zeros if needed
-        if pad_to_max and x_seq.shape[0] < max_len:
-            pad_width = ((0, max_len - x_seq.shape[0]), (0, 0))
-            x_seq = np.pad(x_seq, pad_width, mode='constant')
-        X.append(x_seq)
-        y.append(next_month[target_cols].values[0])  # or customize as needed
-
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
 
 #----#
 

@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>80-20 Code &amp; Graphs\Code\Hourly\DemandxSupplyxWeather - Hourly - 80-20 - R.py</StartupFile>
+    <StartupFile>Optimisation\Optimisation Code.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -50,6 +50,7 @@
     <Compile Include="Deprecated Code\Single Weather Files\DemandxWeather - Daily .py" />
     <Compile Include="Deprecated Code\Single Weather Files\DemandxWeather - Monthly.py" />
     <Compile Include="Deprecated Code\SupplyxDemand.py" />
+    <Compile Include="Optimisation\Optimisation Code.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Base 80-20\BLSTM\Class-BLSTM-Dem.PNG" />
@@ -1031,6 +1032,7 @@
     <Content Include="Notes\ToDoList.txt" />
     <Content Include="Datasets\Weather for demand 2018.xlsx" />
     <Content Include="Datasets\weather for solar 2021.xlsx" />
+    <Content Include="Optimisation\New Datasets\International Energy Agency - Electricity generation sources, Saudi Arabia, 2023.csv" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\" />
@@ -1098,6 +1100,7 @@
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Reinforced Table Results\Table Results\" />
     <Folder Include="Datasets\" />
     <Folder Include="Deprecated Code\" />
+    <Folder Include="Optimisation\" />
     <Folder Include="Notes\" />
     <Folder Include="70-30 Plots\DemandSolo\" />
     <Folder Include="70-30 Plots\Demand Solo Monthly\" />
@@ -1198,6 +1201,7 @@
     <Folder Include="70-30 Plots\SupplyXWeather\" />
     <Folder Include="70-30 Plots\SupplyXWeather\Daily\" />
     <Folder Include="70-30 Plots\SupplyXWeather\Monthly\" />
+    <Folder Include="Optimisation\New Datasets\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
