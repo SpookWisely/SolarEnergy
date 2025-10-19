@@ -348,7 +348,7 @@ def plot_dispatch_series(series_df: pd.DataFrame, title: str):
     fig.update_yaxes(title_text="Energy (MWh)", row=2, col=1)
     fig.update_layout(title=title, barmode="overlay", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
     return fig
-
+## For Visualization of Pareto Front to see the trade-off between different objectives
 def plot_pareto_front(hof):
     imports = [float(ind.fitness.values[0]) for ind in hof]
     losses  = [float(ind.fitness.values[1]) for ind in hof]
@@ -362,7 +362,7 @@ def plot_pareto_front(hof):
     ))
     fig.update_layout(title="NSGA-II Pareto Front", xaxis_title="Grid Imports (MWh)", yaxis_title="Storage Losses (MWh)")
     return fig
-
+## Function to show the figure
 def show_figure(fig, name="figure"):
     """
     Try to display the plot in the default browser. If the active Plotly renderer
