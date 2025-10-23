@@ -1032,6 +1032,19 @@
     <Content Include="Notes\ToDoList.txt" />
     <Content Include="Datasets\Weather for demand 2018.xlsx" />
     <Content Include="Datasets\weather for solar 2021.xlsx" />
+    <Content Include="Optimisation\HTML Files\dispatch_model_a.html" />
+    <Content Include="Optimisation\HTML Files\dispatch_model_b.html" />
+    <Content Include="Optimisation\HTML Files\dispatch_model_c.html" />
+    <Content Include="Optimisation\HTML Files\dispatch_model_d.html" />
+    <Content Include="Optimisation\HTML Files\dispatch_model_e.html" />
+    <Content Include="Optimisation\HTML Files\kpi_comparison.html" />
+    <Content Include="Optimisation\HTML Files\pareto_front.html" />
+    <Content Include="Optimisation\HTML Files\pareto_front_mopso.html" />
+    <Content Include="Optimisation\KPI Results\Model - A - No Storage - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Model - B - Rule Based - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Model - C - NSGA-II - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Model - D - PSO - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Model - E - MOPSO - KPIS.png" />
     <Content Include="Optimisation\New Datasets\year supply and demand.xlsx" />
   </ItemGroup>
   <ItemGroup>
@@ -1202,6 +1215,8 @@
     <Folder Include="70-30 Plots\SupplyXWeather\Daily\" />
     <Folder Include="70-30 Plots\SupplyXWeather\Monthly\" />
     <Folder Include="Optimisation\New Datasets\" />
+    <Folder Include="Optimisation\HTML Files\" />
+    <Folder Include="Optimisation\KPI Results\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
