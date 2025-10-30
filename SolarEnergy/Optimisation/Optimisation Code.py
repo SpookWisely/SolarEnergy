@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 from deap import base, creator, tools, algorithms
+from deap.tools.emo import uniform_reference_points
 import os
 
 # Force a renderer that works from plain scripts (outside notebooks/interactive)
@@ -16,6 +17,33 @@ pio.renderers.default = "browser"
 # Directory for exported plots (absolute path)
 EXPORT_DIR = r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Optimisation\HTML Files"
 os.makedirs(EXPORT_DIR, exist_ok=True)
+
+# Objective mode: "all" (3 objectives), "emissions" (single), "solar_share" (single), "losses" (single)
+OBJECTIVE_MODE = "all"
+## --model all --objective-set all
+## --model all --objective-set emissions
+## --model all --objective-set solar_share
+## --model all --objective-set losses
+def _objective_tuple_from_kpis(k: dict, mode: str):
+    """
+    Returns an objective tuple for minimization:
+      - all: (emissions, 1 - solar_share, storage_losses)
+      - emissions: (emissions, emissions)            [duplicated for MO algorithms]
+      - solar_share: (1 - solar_share, 1 - solar_share)
+      - losses: (storage_losses, storage_losses)
+    """
+    em = float(k["CO2 Emissions (tCO2)"])
+    share = float(k["Solar Share (%)"])
+    one_minus_share = 1.0 - (share / 100.0)
+    losses = float(k["Storage Losses (MWh)"])
+    if mode == "all":
+        return (em, one_minus_share, losses)
+    if mode == "emissions":
+        return (em, em)
+    if mode == "solar_share":
+        return (one_minus_share, one_minus_share)
+    # mode == "losses"
+    return (losses, losses)
 
 #  Data load and cleaning 
 sp_Merged = pd.read_excel(r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Optimisation\New Datasets\year supply and demand.xlsx")
@@ -273,11 +301,52 @@ def run_model_b_rule_based(high_demand_quantile: float = 0.80, return_series: bo
     }, index=idx)
     return kpis, series_df
 
-# DEAP NSGA-II setup
-if "FitnessMulti" not in creator.__dict__:
-    creator.create("FitnessMulti", base.Fitness, weights=(-1.0, -1.0, -1.0))
-if "Individual" not in creator.__dict__:
+# --- DEAP configuration (dynamic by OBJECTIVE_MODE)
+def _nobj_from_mode(mode: str) -> int:
+    return 3 if mode == "all" else 2
+
+def configure_deap(mode: str):
+    # Recreate classes to avoid stale definitions across debug sessions
+    from deap import creator
+    nobj = _nobj_from_mode(mode)
+
+    for cls in ("FitnessMulti", "Individual"):
+        if cls in creator.__dict__:
+            del creator.__dict__[cls]
+
+    creator.create("FitnessMulti", base.Fitness, weights=tuple([-1.0] * nobj))
     creator.create("Individual", list, fitness=creator.FitnessMulti)
+
+    global toolbox
+    toolbox = base.Toolbox()
+    # Genes: [charge_bias, discharge_bias, reserve_frac, end_target_frac]
+    toolbox.register("attr_cb", random.uniform, LOW[0], UP[0])
+    toolbox.register("attr_db", random.uniform, LOW[1], UP[1])
+    toolbox.register("attr_rf", random.uniform, LOW[2], UP[2])
+    toolbox.register("attr_et", random.uniform, LOW[3], UP[3])
+    toolbox.register("individual", tools.initCycle, creator.Individual,
+                     (toolbox.attr_cb, toolbox.attr_db, toolbox.attr_rf, toolbox.attr_et), n=1)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    def evaluate(ind):
+        cb, db, rf, et = ind
+        k = simulate_dispatch(cb, db, rf, et)
+        return _objective_tuple_from_kpis(k, mode)
+    toolbox.register("evaluate", evaluate)
+    toolbox.register("mate", tools.cxSimulatedBinaryBounded, low=LOW, up=UP, eta=10.0)
+    toolbox.register("mutate", tools.mutPolynomialBounded, low=LOW, up=UP, eta=15.0, indpb=0.25)
+    toolbox.register("select", tools.selNSGA2)
+
+# DEAP NSGA-II setup
+# Always recreate to avoid stale class definitions across debug sessions
+from deap import creator
+
+for cls in ("FitnessMulti", "Individual"):
+    if cls in creator.__dict__:
+        del creator.__dict__[cls]
+
+creator.create("FitnessMulti", base.Fitness, weights=(-1.0, -1.0))  # 2 objectives: (Emissions, 1 - Solar Share)
+creator.create("Individual", list, fitness=creator.FitnessMulti)
 
 toolbox = base.Toolbox()
 
@@ -296,8 +365,7 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 def evaluate(ind):
     cb, db, rf, et = ind
     k = simulate_dispatch(cb, db, rf, et)
-    one_minus_share = 1.0 - (k["Solar Share (%)"] / 100.0)
-    return (k["Grid Imports (MWh)"], k["Storage Losses (MWh)"], one_minus_share)
+    return _objective_tuple_from_kpis(k, OBJECTIVE_MODE)
 
 toolbox.register("evaluate", evaluate)
 toolbox.register("mate", tools.cxSimulatedBinaryBounded, low=LOW, up=UP, eta=10.0)
@@ -311,7 +379,7 @@ def run_model_c_nsga2(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, use_mp=False):
 
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = (float(fit[0]), float(fit[1]), float(fit[2]))
+        ind.fitness.values = tuple(map(float, fit))
     pop = toolbox.select(pop, len(pop))
 
     if use_mp:
@@ -330,27 +398,48 @@ def run_model_c_nsga2(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, use_mp=False):
 # =========================
 # PSO (Particle Swarm Optimization)
 # =========================
-def _pso_cost_from_kpis(k: dict, w1: float = 1.0, w2: float = 1.0, w3: float = 1.0) -> float:
+def _pso_cost_from_kpis(k: dict, mode: str = "all", w_em: float = 0.5, w_sh: float = 0.5, w_ls: float | None = None) -> float:
     """
-    Aggregate scalar objective for PSO using the same objectives as NSGA-II,
-    normalized and equally weighted by default.
+    Aggregate scalar for PSO:
+      - all: w_em * emissions_norm + w_sh * (1 - solar_share) + w_ls * losses_norm  (w_ls defaults to 1 - w_em - w_sh)
+      - emissions: emissions only (normalized)
+      - solar_share: (1 - solar_share) only
+      - losses: storage losses only (normalized)
     """
-    imports_norm = (k["Grid Imports (MWh)"] / total_demand) if total_demand > 0 else 0.0
-    losses_norm  = (k["Storage Losses (MWh)"] / total_pv) if total_pv > 0 else 0.0
-    one_minus_share = 1.0 - (k["Solar Share (%)"] / 100.0)  # already 0..1
-    return w1 * imports_norm + w2 * losses_norm + w3 * one_minus_share
+    em = float(k["CO2 Emissions (tCO2)"])
+    share = float(k["Solar Share (%)"])
+    losses = float(k["Storage Losses (MWh)"])
+    one_minus_share = 1.0 - (share / 100.0)
 
-def _evaluate_genes_cost(genes, w1=1.0, w2=1.0, w3=1.0):
+    denom_em = max(total_demand * constantEF, 1e-9)
+    em_norm = em / denom_em
+    denom_losses = max(total_pv, 1e-9)
+    losses_norm = losses / denom_losses
+
+    if mode == "emissions":
+        return em_norm
+    if mode == "solar_share":
+        return one_minus_share
+    if mode == "losses":
+        return losses_norm
+
+    # mode == "all"
+    if w_ls is None:
+        w_ls = max(0.0, 1.0 - (w_em + w_sh))
+    return w_em * em_norm + w_sh * one_minus_share + w_ls * losses_norm
+
+def _evaluate_genes_cost(genes, mode="all", w_em=0.5, w_sh=0.5):
     cb, db, rf, et = map(float, genes)
     k = simulate_dispatch(cb, db, rf, et)
-    return _pso_cost_from_kpis(k, w1, w2, w3), k
+    return _pso_cost_from_kpis(k, mode, w_em, w_sh), k
 
-def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5, weights=(1.0, 1.0, 1.0)):
+def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5,
+                    weights=(0.5, 0.5)):
     """
-    Particle Swarm Optimization minimizing an aggregate of the three objectives:
-      - Grid Imports (normalized by total demand)
-      - Storage Losses (normalized by total PV)
-      - (1 - Solar Share)
+    PSO minimizing:
+      - both: weighted emissions + (1 - solar_share)
+      - emissions: emissions only
+      - solar_share: (1 - solar_share) only
     Returns: (best_genes_list, best_kpis_dict)
     """
     print("PSO Started")
@@ -369,9 +458,9 @@ def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5, weights=(1.0
     pbest_cost = np.empty(swarm_size, dtype=float)
     pbest_kpis = [None] * swarm_size
 
-    w1, w2, w3 = weights
+    w_em, w_sh = weights
     for p in range(swarm_size):
-        cost, k = _evaluate_genes_cost(pbest_pos[p], w1, w2, w3)
+        cost, k = _evaluate_genes_cost(pbest_pos[p], OBJECTIVE_MODE, w_em, w_sh)
         pbest_cost[p] = cost
         pbest_kpis[p] = k
 
@@ -392,13 +481,11 @@ def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5, weights=(1.0
 
         # Evaluate and update bests
         for p in range(swarm_size):
-            cost, k = _evaluate_genes_cost(pos[p], w1, w2, w3)
-            # Update personal best
+            cost, k = _evaluate_genes_cost(pos[p], OBJECTIVE_MODE, w_em, w_sh)
             if cost < pbest_cost[p]:
                 pbest_cost[p] = cost
                 pbest_pos[p] = pos[p].copy()
                 pbest_kpis[p] = k
-                # Update global best
                 if cost < gbest_cost:
                     gbest_cost = cost
                     gbest_pos = pos[p].copy()
@@ -411,12 +498,15 @@ def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5, weights=(1.0
 
 # MOPSO (Multi-Objective PSO)
 
-## Utility: convert KPIs to objective tuple matching NSGA-II (all minimized)
-def _kpis_to_objectives(k: dict):
-    imports = float(k["Grid Imports (MWh)"])
-    losses  = float(k["Storage Losses (MWh)"])
-    one_minus_share = 1.0 - (float(k["Solar Share (%)"]) / 100.0)
-    return (imports, losses, one_minus_share)
+def _kpis_to_objectives(k: dict, mode: str):
+    """
+    Convert KPIs to objectives tuple (minimization):
+      - all: (emissions, 1 - solar_share, storage_losses)
+      - emissions: (emissions, emissions)
+      - solar_share: (1 - solar_share, 1 - solar_share)
+      - losses: (storage_losses, storage_losses)
+    """
+    return _objective_tuple_from_kpis(k, mode)
 
 ## Dominance check: a dominates b if a <= b on all and < on at least one (minimization)
 def _dominates(a, b):
@@ -479,13 +569,10 @@ def _update_archive(arch_pos: np.ndarray, arch_objs: np.ndarray,
     # Truncate by crowding distance if exceeding max_size
     if len(nd_objs) > max_size:
         cd = _crowding_distance(nd_objs)
-        # Iteratively remove the smallest crowding distance
         idxs = list(range(len(nd_objs)))
         while len(idxs) > max_size:
-            # among finite distances, pick smallest; avoid removing infinities first
             finite = [(i, cd[i]) for i in idxs if not np.isinf(cd[i])]
             if not finite:
-                # if all inf, remove randomly
                 idxs.pop(np.random.randint(len(idxs)))
                 continue
             i_min = min(finite, key=lambda t: t[1])[0]
@@ -506,14 +593,9 @@ def _select_leader(arch_objs: np.ndarray):
 def run_model_e_mopso(swarm_size=80, iters=80, w=0.7, c1=1.5, c2=1.5,
                       archive_size=100, vmax_frac=0.2):
     """
-    Multi-Objective PSO that optimizes the same 3 objectives as NSGA-II:
-      - Min Grid Imports (MWh)
-      - Min Storage Losses (MWh)
-      - Min (1 - Solar Share)
-
-    Returns:
-      archive_pos (np.ndarray [k,4]), archive_objs (np.ndarray [k,3]),
-      best_genes_by_imports (list[4]), best_kpis (dict)
+    MOPSO optimizing:
+      - all: Min Emissions, Min (1 - Solar Share), Min Storage Losses
+      - solo modes: duplicated single objective
     """
     print("MOPSO Started")
     dim = 4
@@ -522,62 +604,60 @@ def run_model_e_mopso(swarm_size=80, iters=80, w=0.7, c1=1.5, c2=1.5,
     span = up - low
     vmax = span * float(max(vmax_frac, 1e-6))
 
-    # Initialize swarm uniformly within bounds
+    # Initialize swarm
     pos = np.array([[np.random.uniform(low[i], up[i]) for i in range(dim)] for _ in range(swarm_size)], dtype=float)
     vel = np.zeros((swarm_size, dim), dtype=float)
+
+    # Determine objective dimensionality
+    m = len(_kpis_to_objectives(simulate_dispatch(*pos[0]), OBJECTIVE_MODE))
+
     pbest_pos = pos.copy()
-    pbest_objs = np.zeros((swarm_size, 3), dtype=float)
+    pbest_objs = np.zeros((swarm_size, m), dtype=float)
+    cur_objs = np.zeros((swarm_size, m), dtype=float)
 
     # Evaluate initial particles
-    cur_objs = np.zeros((swarm_size, 3), dtype=float)
     for i in range(swarm_size):
         k = simulate_dispatch(*pos[i])
-        cur_objs[i] = _kpis_to_objectives(k)
+        cur_objs[i] = _kpis_to_objectives(k, OBJECTIVE_MODE)
     pbest_objs[:] = cur_objs
 
     # Init archive
-    arch_pos, arch_objs = _update_archive(np.empty((0, dim)), np.empty((0, 3)), pos, cur_objs, archive_size)
+    arch_pos, arch_objs = _update_archive(np.empty((0, dim)), np.empty((0, m)), pos, cur_objs, archive_size)
 
     # Iterate
     for it in range(iters):
-        # Leader selection per particle
         if len(arch_objs) == 0:
-            # Rebuild if empty due to truncation
-            arch_pos, arch_objs = _update_archive(np.empty((0, dim)), np.empty((0, 3)), pos, cur_objs, archive_size)
+            arch_pos, arch_objs = _update_archive(np.empty((0, dim)), np.empty((0, m)), pos, cur_objs, archive_size)
         leader_idx = _select_leader(arch_objs)
 
         r1 = np.random.rand(swarm_size, dim)
         r2 = np.random.rand(swarm_size, dim)
 
-        # Velocity and position update
         vel = w * vel + c1 * r1 * (pbest_pos - pos) + c2 * r2 * (arch_pos[leader_idx] - pos)
         vel = np.clip(vel, -vmax, vmax)
-        pos = pos + vel
-        pos = np.minimum(np.maximum(pos, low), up)
+        pos = np.clip(pos + vel, low, up)
 
         # Evaluate current positions
         for i in range(swarm_size):
             k = simulate_dispatch(*pos[i])
-            cur = _kpis_to_objectives(k)
+            cur = _kpis_to_objectives(k, OBJECTIVE_MODE)
 
-            # Update personal best using Pareto dominance
             if _dominates(cur, pbest_objs[i]):
                 pbest_objs[i] = cur
                 pbest_pos[i] = pos[i].copy()
             elif not _dominates(pbest_objs[i], cur):
-                # Neither dominates the other: small probability to accept for exploration
                 if np.random.rand() < 0.3:
                     pbest_objs[i] = cur
                     pbest_pos[i] = pos[i].copy()
 
         # Update archive with current swarm
         arch_pos, arch_objs = _update_archive(arch_pos, arch_objs, pos, cur_objs, archive_size)
-        # Update with new evaluations (ensures latest positions considered)
-        arch_pos, arch_objs = _update_archive(arch_pos, arch_objs, pos, np.array([_kpis_to_objectives(simulate_dispatch(*p)) for p in pos]), archive_size)
+        eval_objs = np.array([_kpis_to_objectives(simulate_dispatch(*p), OBJECTIVE_MODE) for p in pos])
+        arch_pos, arch_objs = _update_archive(arch_pos, arch_objs, pos, eval_objs, archive_size)
+        cur_objs = eval_objs
 
-    # Pick representative best by minimal imports from archive
+    # Pick representative best by first objective
     if len(arch_objs) == 0:
-        # Fallback: use best personal best by imports
         idx = int(np.argmin(pbest_objs[:, 0]))
         best_genes = pbest_pos[idx].tolist()
         best_kpis = simulate_dispatch(*best_genes)
@@ -588,9 +668,64 @@ def run_model_e_mopso(swarm_size=80, iters=80, w=0.7, c1=1.5, c2=1.5,
 
     genes_rounded = [round(float(x), 4) for x in best_genes]
     print(f"MOPSO archive size: {len(arch_objs)}")
-    print(f"MOPSO Best by Imports: genes={genes_rounded}")
+    print(f"MOPSO Best by first objective: genes={genes_rounded}")
 
     return arch_pos, arch_objs, best_genes, best_kpis
+# For NSGA-III Model
+def run_model_f_nsga3(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, divisions=12, use_mp=False):
+    """
+    NSGA-III:
+      - all: 3 objectives (Emissions, 1 - Solar Share, Storage Losses)
+      - solo modes: duplicated single objective (2D)
+    """
+    nobj = _nobj_from_mode(OBJECTIVE_MODE)
+
+    toolbox3 = base.Toolbox()
+    toolbox3.register("attr_cb", random.uniform, LOW[0], UP[0])
+    toolbox3.register("attr_db", random.uniform, LOW[1], UP[1])
+    toolbox3.register("attr_rf", random.uniform, LOW[2], UP[2])
+    toolbox3.register("attr_et", random.uniform, LOW[3], UP[3])
+    toolbox3.register(
+        "individual", tools.initCycle, creator.Individual,
+        (toolbox3.attr_cb, toolbox3.attr_db, toolbox3.attr_rf, toolbox3.attr_et), n=1
+    )
+    toolbox3.register("population", tools.initRepeat, list, toolbox3.individual)
+
+    def eval3(ind):
+        cb, db, rf, et = ind
+        k = simulate_dispatch(cb, db, rf, et)
+        return _objective_tuple_from_kpis(k, OBJECTIVE_MODE)
+    toolbox3.register("evaluate", eval3)
+    toolbox3.register("mate", tools.cxSimulatedBinaryBounded, low=LOW, up=UP, eta=10.0)
+    toolbox3.register("mutate", tools.mutPolynomialBounded, low=LOW, up=UP, eta=15.0, indpb=0.25)
+
+    ref_points = uniform_reference_points(nobj=nobj, p=divisions)
+    toolbox3.register("select", tools.selNSGA3, ref_points=ref_points)
+
+    pop = toolbox3.population(n=pop_size)
+    hof3 = tools.ParetoFront()
+    print("NSGA-III Started")
+
+    fitnesses = list(map(toolbox3.evaluate, pop))
+    for ind, fit in zip(pop, fitnesses):
+        ind.fitness.values = tuple(map(float, fit))
+    pop = toolbox3.select(pop, len(pop))
+
+    if use_mp:
+        with multiprocessing.Pool() as pool:
+            toolbox3.register("map", pool.map)
+            algorithms.eaMuPlusLambda(
+                pop, toolbox3, mu=pop_size, lambda_=2*pop_size,
+                cxpb=cxpb, mutpb=mutpb, ngen=ngen, halloffame=hof3, verbose=True
+            )
+    else:
+        toolbox3.register("map", map)
+        algorithms.eaMuPlusLambda(
+            pop, toolbox3, mu=pop_size, lambda_=2*pop_size,
+            cxpb=cxpb, mutpb=mutpb, ngen=ngen, halloffame=hof3, verbose=True
+        )
+
+    return hof3
 
 # This function builds a grouped bar chart to compare KPIs across different models.
 def compare_kpis_bar(models: dict):
@@ -620,32 +755,74 @@ def plot_dispatch_series(series_df: pd.DataFrame, title: str):
     fig.update_layout(title=title, barmode="overlay", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
     return fig
 ## For Visualization of Pareto Front to see the trade-off between different objectives
-def plot_pareto_front(hof):
-    imports = [float(ind.fitness.values[0]) for ind in hof]
-    losses  = [float(ind.fitness.values[1]) for ind in hof]
-    one_minus_share = [float(ind.fitness.values[2]) for ind in hof]
-    solar_share = [(1.0 - v) * 100.0 for v in one_minus_share]
-    fig = go.Figure(data=go.Scatter(
-        x=imports, y=losses, mode="markers",
-        marker=dict(size=8, color=solar_share, colorscale="Viridis", colorbar=dict(title="Solar Share (%)")),
-        text=[f"share={s:.1f}%" for s in solar_share],
-        name="Pareto Front"
-    ))
-    fig.update_layout(title="NSGA-II Pareto Front", xaxis_title="Grid Imports (MWh)", yaxis_title="Storage Losses (MWh)")
+def plot_pareto_front(hof, title: str = "NSGA-II Pareto Front", mode: str = "all"):
+    vals = [tuple(map(float, ind.fitness.values)) for ind in hof]
+
+    if mode == "all":
+        x_vals = [v[0] for v in vals]               # Emissions
+        y_vals = [v[2] for v in vals]               # Storage Losses
+        solar_share = [(1.0 - v[1]) * 100.0 for v in vals]  # from (1 - share)
+        fig = go.Figure(data=go.Scatter(
+            x=x_vals, y=y_vals, mode="markers",
+            marker=dict(size=8, color=solar_share, colorscale="Viridis",
+                        colorbar=dict(title="Solar Share (%)")),
+            text=[f"share={s:.1f}%" for s in solar_share],
+            name="Pareto Front"
+        ))
+        fig.update_layout(title=title, xaxis_title="CO2 Emissions (tCO2)", yaxis_title="Storage Losses (MWh)")
+        return fig
+
+    # solo modes (2D) preserved
+    x_vals = [v[0] for v in vals]
+    y_vals = [v[1] for v in vals]
+    scatter_kwargs = {}
+    if mode == "emissions":
+        scatter_kwargs["marker"] = dict(size=8, color="#1f77b4")
+        xt, yt = "CO2 Emissions (tCO2)", "CO2 Emissions (tCO2)"
+    elif mode == "solar_share":
+        scatter_kwargs["marker"] = dict(size=8, color="#1f77b4")
+        xt, yt = "1 - Solar Share", "1 - Solar Share"
+    elif mode == "losses":
+        scatter_kwargs["marker"] = dict(size=8, color="#1f77b4")
+        xt, yt = "Storage Losses (MWh)", "Storage Losses (MWh)"
+    else:
+        # legacy fallback (treat as 'all')
+        return plot_pareto_front(hof, title, "all")
+
+    fig = go.Figure(data=go.Scatter(x=x_vals, y=y_vals, mode="markers", name="Pareto Front", **scatter_kwargs))
+    fig.update_layout(title=title, xaxis_title=xt, yaxis_title=yt)
     return fig
+
 ## For Visualization of MOPSO Pareto Front
-def plot_pareto_front_mopso(archive_objs: np.ndarray):
-    imports = archive_objs[:, 0].tolist()
-    losses  = archive_objs[:, 1].tolist()
-    one_minus_share = archive_objs[:, 2].tolist()
-    solar_share = [(1.0 - v) * 100.0 for v in one_minus_share]
-    fig = go.Figure(data=go.Scatter(
-        x=imports, y=losses, mode="markers",
-        marker=dict(size=8, color=solar_share, colorscale="Plasma", colorbar=dict(title="Solar Share (%)")),
-        text=[f"share={s:.1f}%" for s in solar_share],
-        name="MOPSO Pareto Front"
-    ))
-    fig.update_layout(title="MOPSO Pareto Front", xaxis_title="Grid Imports (MWh)", yaxis_title="Storage Losses (MWh)")
+def plot_pareto_front_mopso(archive_objs: np.ndarray, mode: str = "all"):
+    objs = np.asarray(archive_objs, dtype=float)
+
+    if mode == "all":
+        x_vals = objs[:, 0].tolist()                 # Emissions
+        y_vals = objs[:, 2].tolist()                 # Storage Losses
+        solar_share = [(1.0 - v) * 100.0 for v in objs[:, 1].tolist()]  # from (1 - share)
+        fig = go.Figure(data=go.Scatter(
+            x=x_vals, y=y_vals, mode="markers",
+            marker=dict(size=8, color=solar_share, colorscale="Plasma",
+                        colorbar=dict(title="Solar Share (%)")),
+            text=[f"share={s:.1f}%" for s in solar_share],
+            name="MOPSO Pareto Front"
+        ))
+        fig.update_layout(title="MOPSO Pareto Front", xaxis_title="CO2 Emissions (tCO2)", yaxis_title="Storage Losses (MWh)")
+        return fig
+
+    # solo modes (2D) preserved
+    x_vals = objs[:, 0].tolist()
+    y_vals = objs[:, 1].tolist()
+    if mode == "emissions":
+        title, xt, yt = "MOPSO Pareto Front (Emissions)", "CO2 Emissions (tCO2)", "CO2 Emissions (tCO2)"
+    elif mode == "solar_share":
+        title, xt, yt = "MOPSO Pareto Front (Solar Share)", "1 - Solar Share", "1 - Solar Share"
+    else:  # losses
+        title, xt, yt = "MOPSO Pareto Front (Losses)", "Storage Losses (MWh)", "Storage Losses (MWh)"
+    fig = go.Figure(data=go.Scatter(x=x_vals, y=y_vals, mode="markers", name="MOPSO Pareto Front",
+                                    marker=dict(size=8, color="#9467bd")))
+    fig.update_layout(title=title, xaxis_title=xt, yaxis_title=yt)
     return fig
 ## Function to show the figure
 def show_figure(fig, name="figure", offline=True):
@@ -668,8 +845,8 @@ def show_figure(fig, name="figure", offline=True):
 # Entry point of the script
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Run baseline, rule-based, or NSGA-II optimization models.")
-    parser.add_argument("--model", choices=["a", "b", "c", "d", "e", "all"], default="all")
+    parser = argparse.ArgumentParser(description="Run baseline, rule-based, or NSGA optimization models.")
+    parser.add_argument("--model", choices=["a", "b", "c", "d", "e", "f", "all"], default="all")
     parser.add_argument("--quantile", type=float, default=0.80)
     parser.add_argument("--pop-size", type=int, default=100)
     parser.add_argument("--ngen", type=int, default=40)
@@ -690,7 +867,25 @@ if __name__ == "__main__":
     parser.add_argument("--mopso-c2", type=float, default=1.5)
     parser.add_argument("--mopso-archive", type=int, default=100)
     parser.add_argument("--mopso-vmax", type=float, default=0.2, help="Max velocity as fraction of range per dim")
+    # NSGA-III parameters
+    parser.add_argument("--nsga3-div", type=int, default=12, help="Number of divisions for NSGA-III")
+    # Objective set selection for exports and evaluation
+    parser.add_argument("--objective-set",
+                        choices=["all", "emissions", "solar_share", "losses"],
+                        default="all",
+                        help="Choose which objectives to run: all (3 objectives), or a single objective.")
     args = parser.parse_args()
+
+    # Configure objective mode and export directory
+    OBJECTIVE_MODE = args.objective_set
+    subdir = {"all": "all", "emissions": "emissions", "solar_share": "solar share", "losses": "losses"}[OBJECTIVE_MODE]
+    EXPORT_DIR = os.path.join(EXPORT_DIR, subdir)
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+    print(f"Objective mode: {OBJECTIVE_MODE}. Exporting figures to: {EXPORT_DIR}")
+
+    # Configure DEAP (must be called after OBJECTIVE_MODE is known)
+    configure_deap(OBJECTIVE_MODE)
+
     ## Print out of KPI in block for each model
     def print_kpis(title, k):
         print(f"\n=== {title} ===")
@@ -721,14 +916,22 @@ if __name__ == "__main__":
         print_kpis(f"Model B - Rule-Based (Q={args.quantile})", k_b)
 
     hof = None; best = None
+    hof3 = None; best3 = None
     if args.model in ("c", "all"):
+        configure_deap(OBJECTIVE_MODE)
         hof = run_model_c_nsga2(pop_size=args.pop_size, ngen=args.ngen,
                                 cxpb=args.cxpb, mutpb=args.mutpb, use_mp=args.mp)
         print(f"\nPareto set size: {len(hof)}")
-        best = min(hof, key=lambda ind: ind.fitness.values[0])
+        best = min(hof, key=lambda ind: ind.fitness.values[0])  # first objective depends on mode
         k_best = simulate_dispatch(*best)
         genes = [round(float(x), 4) for x in best]
-        print(f"Model C - NSGA-II Best by Imports: genes={genes}")
+        if OBJECTIVE_MODE == "solar_share":
+            label = "NSGA-II Best by (1 - Share)"
+        elif OBJECTIVE_MODE == "losses":
+            label = "NSGA-II Best by Losses"
+        else:
+            label = "NSGA-II Best by Emissions"
+        print(f"Model C - {label}: genes={genes}")
         print_kpis("Model C - NSGA-II KPIs", k_best)
 
     # Run PSO (single best solution via aggregate objective)
@@ -753,7 +956,21 @@ if __name__ == "__main__":
             archive_size=args.mopso_archive,
             vmax_frac=args.mopso_vmax
         )
-        print_kpis("Model E - MOPSO KPIs (Best by Imports)", k_mopso)
+        print_kpis("Model E - MOPSO KPIs (Best by first objective)", k_mopso)
+
+    # Run NSGA-III
+    if args.model in ("f", "all"):
+        hof3 = run_model_f_nsga3(
+            pop_size=args.pop_size, ngen=args.ngen,
+            cxpb=args.cxpb, mutpb=args.mutpb,
+            divisions=args.nsga3_div, use_mp=args.mp
+        )
+        print(f"\nNSGA-III Pareto set size: {len(hof3)}")
+        best3 = min(hof3, key=lambda ind: ind.fitness.values[0])  # best by first objective
+        k_best3 = simulate_dispatch(*best3)
+        genes3 = [round(float(x), 4) for x in best3]
+        print(f"Model F - NSGA-III Best by First Objective: genes={genes3}")
+        print_kpis("Model F - NSGA-III KPIs", k_best3)
 
     # Visualization goes through the models results and plots to the relevant graphs and with NSGA-II on the paerto front which is to show the trade offs between different objectives.
     models_for_bar = {}
@@ -762,6 +979,8 @@ if __name__ == "__main__":
     if k_best: models_for_bar["C - NSGA-II"] = k_best
     if k_pso: models_for_bar["D - PSO"] = k_pso
     if k_mopso: models_for_bar["E - MOPSO"] = k_mopso
+    if 'k_best3' in locals() and k_best3: models_for_bar["F - NSGA-III"] = k_best3
+
     if models_for_bar:
         show_figure(compare_kpis_bar(models_for_bar), "kpi_comparison")
 
@@ -774,13 +993,16 @@ if __name__ == "__main__":
     if best is not None:
         _, series_c = simulate_dispatch(*best, return_series=True)
         show_figure(plot_dispatch_series(series_c, "Model C - NSGA-II Best Dispatch"), "dispatch_model_c")
-        show_figure(plot_pareto_front(hof), "pareto_front")
+        show_figure(plot_pareto_front(hof, title="NSGA-II Pareto Front", mode=OBJECTIVE_MODE), "pareto_front")
     if pso_best_genes is not None:
         _, series_d = simulate_dispatch(*pso_best_genes, return_series=True)
         show_figure(plot_dispatch_series(series_d, "Model D - PSO Best Dispatch"), "dispatch_model_d")
     if mopso_best_genes is not None:
         _, series_e = simulate_dispatch(*mopso_best_genes, return_series=True)
-        show_figure(plot_dispatch_series(series_e, "Model E - MOPSO Best-by-Imports Dispatch"), "dispatch_model_e")
+        show_figure(plot_dispatch_series(series_e, "Model E - MOPSO Best-by-First-Objective Dispatch"), "dispatch_model_e")
         if mopso_archive_objs is not None and len(mopso_archive_objs) > 0:
-            show_figure(plot_pareto_front_mopso(mopso_archive_objs), "pareto_front_mopso")
-
+            show_figure(plot_pareto_front_mopso(mopso_archive_objs, mode=OBJECTIVE_MODE), "pareto_front_mopso")
+    if best3 is not None:
+        _, series_f = simulate_dispatch(*best3, return_series=True)
+        show_figure(plot_dispatch_series(series_f, "Model F - NSGA-III Best Dispatch"), "dispatch_model_f")
+        show_figure(plot_pareto_front(hof3, "NSGA-III Pareto Front", mode=OBJECTIVE_MODE), "pareto_front_nsga3")

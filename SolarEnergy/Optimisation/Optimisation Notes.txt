@@ -1,0 +1,23 @@
+Somes notes about the objective changes -
+When going through each objective on its own there is a trend that we can see the 
+when the objectives don't have anything to conflict with the model essentially goes to the boundaries
+that have been set (Corner Policy).
+
+So each of the optimiser models when running them have very similar if not the same results as shown 
+in the KPI comparison HTML files.
+
+From looking around this to be expected with the models having a clear boundary optimum set 
+
+I was looking around online and a change that might influence the genes of the models not being 
+so similar is to change the weighting, making use of the end_target_frac which is currently unused or 
+making use of different penalites to influence the model and get more diverse results though this could
+result in very little changes or obscure the objectives.
+
+
+But will talk about this at the next meeting.
+
+Also an a side note I've not used pareto front for the solo objectives as due to it being a single objective it results in a single point 
+rather than a front so it was not necessary to use it.
+
+
+

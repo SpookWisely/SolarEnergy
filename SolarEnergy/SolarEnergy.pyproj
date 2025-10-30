@@ -11,6 +11,10 @@
     <OutputPath>.</OutputPath>
     <Name>SolarEnergy</Name>
     <RootNamespace>SolarEnergy</RootNamespace>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <CommandLineArguments>
+    </CommandLineArguments>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -1032,20 +1036,57 @@
     <Content Include="Notes\ToDoList.txt" />
     <Content Include="Datasets\Weather for demand 2018.xlsx" />
     <Content Include="Datasets\weather for solar 2021.xlsx" />
-    <Content Include="Optimisation\HTML Files\dispatch_model_a.html" />
-    <Content Include="Optimisation\HTML Files\dispatch_model_b.html" />
-    <Content Include="Optimisation\HTML Files\dispatch_model_c.html" />
-    <Content Include="Optimisation\HTML Files\dispatch_model_d.html" />
-    <Content Include="Optimisation\HTML Files\dispatch_model_e.html" />
-    <Content Include="Optimisation\HTML Files\kpi_comparison.html" />
-    <Content Include="Optimisation\HTML Files\pareto_front.html" />
-    <Content Include="Optimisation\HTML Files\pareto_front_mopso.html" />
-    <Content Include="Optimisation\KPI Results\Model - A - No Storage - KPIS.png" />
-    <Content Include="Optimisation\KPI Results\Model - B - Rule Based - KPIS.png" />
-    <Content Include="Optimisation\KPI Results\Model - C - NSGA-II - KPIS.png" />
-    <Content Include="Optimisation\KPI Results\Model - D - PSO - KPIS.png" />
-    <Content Include="Optimisation\KPI Results\Model - E - MOPSO - KPIS.png" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_a.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_b.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_c.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_d.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_e.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_f.html" />
+    <Content Include="Optimisation\HTML Files\All\kpi_comparison.html" />
+    <Content Include="Optimisation\HTML Files\All\pareto_front.html" />
+    <Content Include="Optimisation\HTML Files\All\pareto_front_mopso.html" />
+    <Content Include="Optimisation\HTML Files\All\pareto_front_nsga3.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_a.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_b.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_c.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_d.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_e.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\dispatch_model_f.html" />
+    <Content Include="Optimisation\HTML Files\Emissions\kpi_comparison.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_a.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_b.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_c.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_d.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_e.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\dispatch_model_f.html" />
+    <Content Include="Optimisation\HTML Files\Solar Share\kpi_comparison.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_a.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_b.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_c.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_d.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_e.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\dispatch_model_f.html" />
+    <Content Include="Optimisation\HTML Files\StorageLoss\kpi_comparison.html" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - A - No Storage - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - B - Rule Based - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - C - NSGA-II - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - D - PSO - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - E - MOPSO - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\Model - F - NSGA-III - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Emissions Solo\Model - C - NSGA-II - Emissions - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Emissions Solo\Model - D - PSO - Emissions - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Emissions Solo\Model - E - MOPSO - Emissions - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Emissions Solo\Model - F - NSGA-III - Emissions - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Solar Share Solo\Model - C - NSGA-II -Solar Share - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Solar Share Solo\Model - D - PSO -Solar Share - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Solar Share Solo\Model - E- MOPSO -Solar Share - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Solar Share Solo\Model - F - NSGA-III -Solar Share - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Storage Losses Solo\Model - C - NSGA-II -StorageLosses - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Storage Losses Solo\Model - D - PSO - StorageLosses - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Storage Losses Solo\Model - E - MOPSO - StorageLosses - KPIS.png" />
+    <Content Include="Optimisation\KPI Results\Storage Losses Solo\Model - F - NSGA-III -StorageLosses - KPIS.png" />
     <Content Include="Optimisation\New Datasets\year supply and demand.xlsx" />
+    <Content Include="Optimisation\Optimisation Notes.txt" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\" />
@@ -1214,6 +1255,14 @@
     <Folder Include="70-30 Plots\SupplyXWeather\" />
     <Folder Include="70-30 Plots\SupplyXWeather\Daily\" />
     <Folder Include="70-30 Plots\SupplyXWeather\Monthly\" />
+    <Folder Include="Optimisation\HTML Files\All\" />
+    <Folder Include="Optimisation\HTML Files\StorageLoss\" />
+    <Folder Include="Optimisation\HTML Files\Solar Share\" />
+    <Folder Include="Optimisation\HTML Files\Emissions\" />
+    <Folder Include="Optimisation\KPI Results\All Objectives\" />
+    <Folder Include="Optimisation\KPI Results\Emissions Solo\" />
+    <Folder Include="Optimisation\KPI Results\Solar Share Solo\" />
+    <Folder Include="Optimisation\KPI Results\Storage Losses Solo\" />
     <Folder Include="Optimisation\New Datasets\" />
     <Folder Include="Optimisation\HTML Files\" />
     <Folder Include="Optimisation\KPI Results\" />
