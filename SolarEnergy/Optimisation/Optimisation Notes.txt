@@ -13,11 +13,92 @@ so similar is to change the weighting, making use of the end_target_frac which i
 making use of different penalites to influence the model and get more diverse results though this could
 result in very little changes or obscure the objectives.
 
+Pareto Front was dropped for solo objective as it provided nothing in return.
 
-But will talk about this at the next meeting.
+Graph Notes - All Objectives Mode -
+When deciding the overall top optimiser do need to see what the weighting
+of the objectives are as at the moment they are all weighted equally which 
+may not be the best way to decide the overall top optimiser.
 
-Also an a side note I've not used pareto front for the solo objectives as due to it being a single objective it results in a single point 
-rather than a front so it was not necessary to use it.
+Model A - No Storage - Basic model that only just serves demand with no storage.
+Looking at the results on the dispatch showcases the expected behaviour of 
+exporting all excess energy and importing when there is a deficit.
+
+Overall placement is last on the KPI results with the worst performance in all objectives.
+
+Model B - With Storage - A heuristic model making use of rules to change its behaviour.
+
+Looking at its results overall on the placement for its results 2nd last with 
+a sizeable increase in performance from Model A. 
+But still falling short when compared to that of the
+optimiser models in the emisison and import reduction aspects but is the leader
+of the solar losses objective overall with the lowest losses of all models.
+
+This is likely the case from the optimiser models making more use of the storage which
+always has a efficeny loss when charging and discharging. 
+
+Model C - Optimiser (NSGA-II) - 
+As with all of the optimiser models the chosen criteria for them was
+to have the goal of optimising the dispatch by maximising the solar share and the minimisation
+of carbon emissions mainly with the reduciton of grid imports.
+
+This model does overall perform better than of the prior two models A and B in the reducton of imports
+and carbon emissions but does fall short in the area for storage losses as the rule based.
+
+Overall performance this optimiser model places 2nd overall.
+in the KPI results. Which is to be expected as both of them amount of objectives this could
+a gap could appear if the amount of objectives were to increase as NSGA-III is better suited for 
+such a scenario.
+
+Model D - Optimiser (PSO) -
+PSO model overall performs the best out of all models in the KPI results. Joint with Model E (MOPSO)
+as it is the leader in the emission reduction and import reduction objectives. But is ever slightly behind that
+of the other optimiser models in the solar loss objective.
+
+Model E - Optimiser (MOPSO) - 
+This model was used to merely see if the change from single objective PSO to multi objective 
+would make any difference in the results. Upon looking at the final results there was very little
+if at all difference if any when compared to Model D (PSO). So they are both joint leaders in the results.
+
+When looking at the dispatch results it is much the same behaviour as Model D with very little difference.
+(Could be dropped or changed for another model if needed.)
+Model F - Optimiser (NSGA-III) - 
+So as mentioned prior in the NSGA - II Model NSGA-III is better suited for higher amount of objectives. 
+This is shown in the results where while its is very close to that of NSGA-II it performs slighty worse. 
+The difference though is ver minimal so could be due to other factors that could be looked into further.
 
 
+Dispatch Graph Notes -
 
+Model A - No Storage
+Model has no storage so essentially just imports when demand isn't met and exports excess solar
+when generation is higher than demand.
+
+Model B - Rules Based With Storage 
+When looking at the dispatch of model B it goes to maximum battery charge 
+very early on in the year and doesn't export untill the midpoint where 
+meaning alot of wastage of excess solar from not being stored
+then from around may to september demand starts to not be met so it begins
+to discharge and continue a normal cycle of charge and discharge. Till september where it goes back to maximum
+and never discharge again for the rest of the year so can see alot of excess solar that could be exported if need be
+but overall due it is low amount of charing and discharging cycles it has the lowest amount of solar losses.
+
+Model C - Optimiser (NSGA-II) - 
+When looking at Model C the first optimisation model we can see a much different approach to the dispatch in the
+form that it makes use of the storage alot more frequently to store excess solar and discharge when needed.
+Which is shown in the final results that we've arrived at. 
+
+Though as stated proior comes at the detriment of solar losses due to the efficiency losses
+when charging and discharging the battery.
+
+This behaviour is the same in the all the other optimiser models D, E and F.
+
+Model D - Optimiser (PSO) -
+As stated above the behaviour of this model is very similar to that of Model C (NSGA-II) but the key differences
+that one can see from PSO seems to have a much higher peak overall in its value with the PSO model
+PV-> Storage about 150 MW more than that of NSGA-II which help explain its overall less imports and emissions.
+Model E - Optimiser (MOPSO) -
+Identical to Model D
+Model F - Optimiser (NSGA-III) -
+Overall the results of the model are so similar to Model C (NSGA-II) that it is hard to see any difference over than 
+some minor variations in the peaks and troughs of the dispatch. But the behaviour is essentially the same.
