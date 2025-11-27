@@ -8,6 +8,7 @@ Models:
  D: PSO (scalar aggregate objective)
  E: MOPSO (Pareto archive)
  F: NSGA-III (3 genes: charge_bias, discharge_bias, reserve_frac)
+ G: LP (linear program over full horizon; no grid charging; SoC dynamics)
 
 Objective modes:
   all         -> 3 objectives (emissions, 1 - solar_share, storage_losses)
@@ -29,6 +30,12 @@ import plotly.io as pio
 from deap import base, creator, tools, algorithms
 from deap.tools.emo import uniform_reference_points
 import os
+
+# Optional LP solver (PuLP)
+try:
+    import pulp as pl  # type: ignore
+except Exception:
+    pl = None
 
 # Use a renderer that works in plain scripts
 pio.renderers.default = "browser"
@@ -666,6 +673,172 @@ def run_model_e_mopso(swarm_size=80, iters=80, w=0.7, c1=1.5, c2=1.5,
     print(f"MOPSO Best by first objective: genes={genes_rounded}")
     return arch_pos, arch_objs, best_genes, best_kpis
 
+# ---- LP (Model G)
+def run_model_g_lp(mode: str = None,
+                   reserve_frac: float = RESERVE_CONST,
+                   end_target_frac: float | None = None,
+                   weights: tuple[float, float] = (0.5, 0.5),
+                   return_series: bool = False):
+    """
+    Model G: Linear Program over the full horizon with storage physics.
+      - No grid charging (only PV->Storage).
+      - SoC dynamics with efficiencies.
+      - Bounds, reserve floor, and max power.
+      - PV split and load balance per step.
+    Objective:
+      - emissions: minimize total imports
+      - solar_share: maximize (Direct + Storage->Load) <=> minimize -(Direct+Storage->Load)
+      - losses: minimize storage losses
+      - all: weighted linear sum (same normalization idea as PSO)
+    """
+    if mode is None:
+        mode = OBJECTIVE_MODE
+    if pl is None:
+        raise RuntimeError("PuLP is required for Model G (LP). Install with: pip install pulp")
+
+    print("LP Model Started")
+
+    reserve = max(minimum, float(reserve_frac) * energyCapacity)
+    soc_lb = reserve
+    soc_ub = maximum
+
+    # Create LP
+    prob = pl.LpProblem("LP_Dispatch", pl.LpMinimize)
+
+    # Variables
+    soc = {t: pl.LpVariable(f"soc_{t}", lowBound=soc_lb, upBound=soc_ub) for t in range(T + 1)}
+    direct = {t: pl.LpVariable(f"direct_{t}", lowBound=0.0) for t in range(T)}
+    pv2st = {t: pl.LpVariable(f"pv2st_{t}", lowBound=0.0, upBound=max_power) for t in range(T)}
+    st2ld = {t: pl.LpVariable(f"st2ld_{t}", lowBound=0.0, upBound=max_power) for t in range(T)}
+    exp = {t: pl.LpVariable(f"export_{t}", lowBound=0.0) for t in range(T)}
+    imp = {t: pl.LpVariable(f"import_{t}", lowBound=0.0) for t in range(T)}
+
+    # Initial SoC
+    prob += soc[0] == start, "soc_initial"
+
+    # Constraints per timestep
+    for t in range(T):
+        # PV split: direct + pv2st + export = PV
+        prob += direct[t] + pv2st[t] + exp[t] == float(pv_series[t]), f"pv_split_{t}"
+
+        # Load balance: direct + storage_to_load + import = Demand
+        prob += direct[t] + st2ld[t] + imp[t] == float(demand_series[t]), f"load_balance_{t}"
+
+        # SoC dynamics: SoC[t+1] = SoC[t] + eta_ch*pv2st - st2ld/eta_dch
+        prob += soc[t + 1] == soc[t] + float(eta_ch) * pv2st[t] - (st2ld[t] / float(eta_dch)), f"soc_dyn_{t}"
+
+        # Headroom limit on charging (conservative, matches simulate_dispatch)
+        prob += pv2st[t] <= maximum - soc[t], f"charge_headroom_{t}"
+
+        # Discharge availability limited by energy above reserve (matches simulate_dispatch)
+        prob += st2ld[t] <= float(eta_dch) * (soc[t] - reserve), f"discharge_available_{t}"
+
+        # SoC bounds are already enforced via variable bounds
+
+    # Optional end-of-horizon SoC target (if provided)
+    if end_target_frac is not None:
+        target = float(end_target_frac) * energyCapacity
+        lb, ub = end_bounds
+        prob += soc[T] >= max(lb, target), "soc_end_lb"
+        prob += soc[T] <= ub, "soc_end_ub"
+
+    # Objective
+    denom_em = max(total_demand * constantEF, 1e-9)
+    denom_losses = max(total_pv, 1e-9)
+    w_em, w_sh = float(weights[0]), float(weights[1])
+    w_ls = max(0.0, 1.0 - (w_em + w_sh))
+
+    if mode == "emissions":
+        obj = pl.lpSum(imp[t] for t in range(T))  # proportional to emissions
+    elif mode == "solar_share":
+        # minimize -(Direct + Storage->Load) / total_demand
+        obj = - (1.0 / max(total_demand, 1e-9)) * pl.lpSum(direct[t] + st2ld[t] for t in range(T))
+    elif mode == "losses":
+        obj = pl.lpSum(
+            pv2st[t] * (1.0 - float(eta_ch)) + st2ld[t] * (1.0 / float(eta_dch) - 1.0)
+            for t in range(T)
+        )
+    else:
+        # weighted normalized linear sum (constants omitted)
+        obj = (
+            (w_em * constantEF / denom_em) * pl.lpSum(imp[t] for t in range(T))
+            + (- w_sh / max(total_demand, 1e-9)) * pl.lpSum(direct[t] + st2ld[t] for t in range(T))
+            + (w_ls / denom_losses) * pl.lpSum(
+                pv2st[t] * (1.0 - float(eta_ch)) + st2ld[t] * (1.0 / float(eta_dch) - 1.0)
+                for t in range(T)
+            )
+        )
+    prob += obj
+
+    # Solve
+    solver = pl.PULP_CBC_CMD(msg=False)
+    status = prob.solve(solver)
+    if pl.LpStatus[status] != "Optimal":
+        raise RuntimeError(f"LP did not find an optimal solution. Status: {pl.LpStatus[status]}")
+
+    # Extract solution
+    direct_list = [pl.value(direct[t]) for t in range(T)]
+    pv2st_list = [pl.value(pv2st[t]) for t in range(T)]
+    st2load_list = [pl.value(st2ld[t]) for t in range(T)]
+    export_list = [pl.value(exp[t]) for t in range(T)]
+    import_list = [pl.value(imp[t]) for t in range(T)]
+    soc_series = [pl.value(soc[t + 1]) for t in range(T)]  # SoC after step (aligns with simulate_dispatch)
+    loss_list = [
+        pv2st_list[t] * (1.0 - float(eta_ch)) + st2load_list[t] * (1.0 / float(eta_dch) - 1.0)
+        for t in range(T)
+    ]
+
+    end_soc = float(pl.value(soc[T]))
+    delta_soc = end_soc - start
+
+    total_imports = float(np.sum(import_list))
+    total_export  = float(np.sum(export_list))
+    total_losses  = float(np.sum(loss_list))
+    total_direct  = float(np.sum(direct_list))
+    total_pv2st   = float(np.sum(pv2st_list))
+    total_st2ld   = float(np.sum(st2load_list))
+
+    solar_served = total_direct + total_st2ld
+    solar_share = 100.0 * solar_served / total_demand if total_demand > 0 else 0.0
+    solar_wasted = 100.0 * total_export / total_pv if total_pv > 0 else 0.0
+    emissions = total_imports * constantEF
+
+    balance_check = (total_pv + total_imports) - (total_demand + total_export + total_losses + delta_soc)
+
+    kpis = {
+        "Grid Imports (MWh)": total_imports,
+        "CO2 Emissions (tCO2)": emissions,
+        "Solar Share (%)": solar_share,
+        "Solar Wasted (%)": solar_wasted,
+        "Solar Direct to Load (MWh)": total_direct,
+        "Solar to Storage (MWh)": total_pv2st,
+        "Storage to Load (MWh)": total_st2ld,
+        "Storage Losses (MWh)": total_losses,
+        "Solar Exported (MWh)": total_export,
+        "Start Storage (MWh)": start,
+        "End Storage (MWh)": end_soc,
+        "Delta SoC (MWh)": delta_soc,
+        "Energy Balance Check (MWh)": balance_check
+    }
+
+    if not return_series:
+        return kpis
+
+    ts_col = next((c for c in ["Timestamp", "DATE-TIME", "Date & Time", "Date"] if c in sp_Merged.columns), None)
+    idx = pd.to_datetime(sp_Merged[ts_col], errors="coerce") if ts_col else pd.RangeIndex(T)
+    series_df = pd.DataFrame({
+        "Demand": demand_series,
+        "PV": pv_series,
+        "Direct": direct_list,
+        "PV->Storage": pv2st_list,
+        "Storage->Load": st2load_list,
+        "Export": export_list,
+        "Import": import_list,
+        "Losses": loss_list,
+        "SoC": soc_series
+    }, index=idx)
+    return kpis, series_df
+
 # ---- NSGA-III
 def run_model_f_nsga3(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, divisions=12, use_mp=False):
     """Run NSGA-III on 3-gene individuals (cb, db, reserve_frac)."""
@@ -685,8 +858,8 @@ def run_model_f_nsga3(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, divisions=12, 
         return _objective_tuple_from_kpis(k, OBJECTIVE_MODE)
 
     toolbox3.register("evaluate", eval3)
-    toolbox3.register("mate", tools.cxSimulatedBinaryBounded, low=LOW_DEAP, up=UP_DEAP, eta=10.0)
-    toolbox3.register("mutate", tools.mutPolynomialBounded, low=LOW_DEAP, up=UP_DEAP, eta=15.0, indpb=0.25)
+    toolbox3.register("mate", tools.cxSimulatedBinaryBounded, low=LOW, up=UP, eta=10.0)
+    toolbox3.register("mutate", tools.mutPolynomialBounded, low=LOW, up=UP, eta=15.0, indpb=0.25)
 
     ref_points = uniform_reference_points(nobj=nobj, p=divisions)
     toolbox3.register("select", tools.selNSGA3, ref_points=ref_points)
@@ -833,7 +1006,7 @@ def show_figure(fig, name="figure", offline=True):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run baseline, heuristic, or evolutionary/swarm optimization models.")
-    parser.add_argument("--model", choices=["a", "b", "c", "d", "e", "f", "all"], default="all")
+    parser.add_argument("--model", choices=["a", "b", "c", "d", "e", "f", "g", "all"], default="all")
     parser.add_argument("--quantile", type=float, default=0.80)
     parser.add_argument("--pop-size", type=int, default=100)
     parser.add_argument("--ngen", type=int, default=40)
@@ -892,6 +1065,7 @@ if __name__ == "__main__":
     mopso_archive_pos = None
     mopso_archive_objs = None
     mopso_best_genes = None
+    k_lp = None
 
     if args.model in ("a", "all"):
         k_a = run_model_a_no_storage(return_series=False)
@@ -955,6 +1129,10 @@ if __name__ == "__main__":
         print(f"Model F - NSGA-III Best by First Objective: genes={genes3}")
         print_kpis("Model F - NSGA-III KPIs", k_best3)
 
+    if args.model in ("g", "all"):
+        k_lp = run_model_g_lp(mode=OBJECTIVE_MODE, reserve_frac=RESERVE_CONST, end_target_frac=None, weights=(0.5, 0.5), return_series=False)
+        print_kpis("Model G - LP KPIs", k_lp)
+
     # Visualization goes through the models results and plots to the relevant graphs and with NSGA-II on the paerto front which is to show the trade offs between different objectives.
     models_for_bar = {}
     if k_a: models_for_bar["A - No Storage"] = k_a
@@ -963,6 +1141,7 @@ if __name__ == "__main__":
     if k_pso: models_for_bar["D - PSO"] = k_pso
     if k_mopso: models_for_bar["E - MOPSO"] = k_mopso
     if 'k_best3' in locals() and k_best3: models_for_bar["F - NSGA-III"] = k_best3
+    if k_lp: models_for_bar["G - LP"] = k_lp
 
     if models_for_bar:
         show_figure(compare_kpis_bar(models_for_bar), "kpi_comparison")
@@ -989,3 +1168,7 @@ if __name__ == "__main__":
         _, series_f = simulate_dispatch(best3[0], best3[1], best3[2], END_TARGET_CONST, return_series=True)
         show_figure(plot_dispatch_series(series_f, "Model F - NSGA-III Best Dispatch"), "dispatch_model_f")
         show_figure(plot_pareto_front(hof3, "NSGA-III Pareto Front", mode=OBJECTIVE_MODE), "pareto_front_nsga3")
+    if k_lp:
+        k_lp_series = run_model_g_lp(mode=OBJECTIVE_MODE, reserve_frac=RESERVE_CONST, end_target_frac=None, weights=(0.5, 0.5), return_series=True)
+        k_lp_vals, series_lp = k_lp_series
+        show_figure(plot_dispatch_series(series_lp, "Model G - LP Optimal Dispatch"), "dispatch_model_g")

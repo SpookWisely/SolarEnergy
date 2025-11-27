@@ -102,3 +102,31 @@ Identical to Model D
 Model F - Optimiser (NSGA-III) -
 Overall the results of the model are so similar to Model C (NSGA-II) that it is hard to see any difference over than 
 some minor variations in the peaks and troughs of the dispatch. But the behaviour is essentially the same.
+
+
+Notes Regarding your Extra Paper Stuff -
+
+Document storage size selection, LP vs NSGA and formula, 
+and window design results on actual data. - 
+
+For Size selection this was based of your choice so will have to discuss this.
+(Was it industry standard size or is there another reason for the specifically chosen size?)
+
+For the LP I've added a new model "Model G - Optimiser (LP)" to the model list" and have recorded the new results
+just for the base case scenario to see how it performs against the other models.
+
+The window design results - Not soo sure what you mean by this can discuss this on thursday.
+
+Document & the expanded forecast supply and demand to hours 
+to weeks. hourly to be prepared to the optimisation. -
+For this section do you mean change the runtime to be based on a weekly approach
+as opposed to the current daily approach? in relation to the KPIs outputs or
+do you mean running the forecasting models to be weekly based? (Might take sometime to set up)
+Document forecasting horizon extension, evaluation, and selected models. - 
+Need clarification on this.
+Document forecast vs actual dispatch results and seasonal analysis. - 
+Need clarification on this.
+Write interpretation of dispatch impacts and forecasting influence. - 
+Extension from the above point so will also need clarification on this.
+Write limitations, implications, and recommendations. - 
+Done some of this already in the Current version (V3) but can expand on this further.

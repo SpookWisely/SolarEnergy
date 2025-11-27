@@ -1042,6 +1042,7 @@
     <Content Include="Optimisation\HTML Files\All\dispatch_model_d.html" />
     <Content Include="Optimisation\HTML Files\All\dispatch_model_e.html" />
     <Content Include="Optimisation\HTML Files\All\dispatch_model_f.html" />
+    <Content Include="Optimisation\HTML Files\All\dispatch_model_g.html" />
     <Content Include="Optimisation\HTML Files\All\kpi_comparison.html" />
     <Content Include="Optimisation\HTML Files\All\pareto_front.html" />
     <Content Include="Optimisation\HTML Files\All\pareto_front_mopso.html" />
@@ -1064,6 +1065,7 @@
     <Content Include="Optimisation\KPI Results\All Objectives\New Models A to B .png" />
     <Content Include="Optimisation\KPI Results\All Objectives\New Models C to E .png" />
     <Content Include="Optimisation\KPI Results\All Objectives\New Models F .png" />
+    <Content Include="Optimisation\KPI Results\All Objectives\New Models G .png" />
     <Content Include="Optimisation\KPI Results\All Objectives\Old\Model - A - No Storage - KPIS.png" />
     <Content Include="Optimisation\KPI Results\All Objectives\Old\Model - B - Rule Based - KPIS.png" />
     <Content Include="Optimisation\KPI Results\All Objectives\Old\Model - C - NSGA-II - KPIS.png" />
