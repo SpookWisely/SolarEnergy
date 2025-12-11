@@ -15,8 +15,12 @@ Objective modes:
   emissions   -> duplicated single objective (emissions, emissions)
   solar_share -> duplicated (1 - solar_share, 1 - solar_share)
   losses      -> duplicated (storage_losses, storage_losses)
-
-Note: end_target_frac is currently unused in dispatch; reserved for future end-of-horizon SoC targeting.
+Capacity sweep Arguements:
+ --model c --objective-set all --cap-sweep 500,1000,1500,2000 --pop-size 100 --ngen 40 --cxpb 0.9 --mutpb 0.1 NSGA-II
+--model d --objective-set all --cap-sweep 500,1000,1500,2000 --pso-swarm 60 --pso-iters 60 --pso-w 0.7 --pso-c1 1.5 --pso-c2 1.5 - PSO
+Note:
+ - end_target_frac is currently unused in dispatch; reserved for future end-of-horizon SoC targeting.
+ - Weekly aggregation: models run at the original timestep; weekly outputs are resampled views (plots/CSV) saved to a 'Weekly' subfolder when enabled via CLI.
 """
 # ---- Libraries
 import numpy as np
@@ -31,7 +35,7 @@ from deap import base, creator, tools, algorithms
 from deap.tools.emo import uniform_reference_points
 import os
 
-# Optional LP solver (PuLP)
+# Optional LP solver (PuLP) for Model G
 try:
     import pulp as pl  # type: ignore
 except Exception:
@@ -40,7 +44,7 @@ except Exception:
 # Use a renderer that works in plain scripts
 pio.renderers.default = "browser"
 
-# Base export directory for HTML plots
+# Base export directory for HTML plots (objective-specific subfolders added at runtime)
 EXPORT_DIR = r"C:\Users\Harry\source\repos\SolarEnergy\SolarEnergy\Optimisation\HTML Files"
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
@@ -85,7 +89,7 @@ constantEF = 0.5186 # Grid emission factor (TCO2/MWh)
 END_TARGET_CONST = 0.50  # Constant end target fraction (unused in current dispatch logic)
 
 energyCapacity = 2000.0   # MWh (max SoC)
-max_power = 200.0         # MW max charge or discharge instantaneous
+max_power = 200.0         # MW max charge or discharge instantaneous per original timestep
 roundtripefficiency = 0.90
 eta_ch = np.sqrt(roundtripefficiency)      # charge efficiency
 eta_dch = np.sqrt(roundtripefficiency)     # discharge efficiency
@@ -99,7 +103,19 @@ RESERVE_CONST = 0.20  # reserve fraction cap used by DEAP-based 3-gene optimizer
 LOW_DEAP = [0.0, 0.0, 0.00]  # [charge_bias, discharge_bias, reserve_frac]
 UP_DEAP  = [1.0, 1.0, 0.20]
 
-# ---- Demand / PV series
+# ---- Capacity sweep helpers (PSO & NSGA-II only)
+def set_capacity(capacity_mwh: float):
+    """
+    Update global battery capacity and dependent bounds consistently.
+    """
+    global energyCapacity, minimum, maximum, start, end_bounds
+    energyCapacity = float(capacity_mwh)
+    maximum = energyCapacity
+    minimum = 0.20 * energyCapacity
+    start = 0.50 * energyCapacity
+    end_bounds = (minimum, maximum)
+
+# ---- Demand / PV series (original timestep; weekly views are created later for export only)
 demand_series = sp_Merged["Demand"].to_numpy(dtype=float)
 pv_series     = sp_Merged["Supply"].to_numpy(dtype=float)
 T = len(demand_series)
@@ -112,7 +128,7 @@ def simulate_dispatch(charge_bias: float,
                       end_target_frac: float,
                       return_series: bool = False):
     """
-    Simulate storage dispatch over T timesteps.
+    Simulate storage dispatch over T timesteps (original resolution).
 
     Constraints / rules:
       - Direct PV serves load first.
@@ -125,7 +141,7 @@ def simulate_dispatch(charge_bias: float,
 
     Returns:
       - If return_series = False: KPI dict only.
-      - If return_series = True : (KPIs, DataFrame of time series flows).
+      - If return_series = True : (KPIs, DataFrame of time series flows at original resolution).
     """
     soc = start
     reserve = max(minimum, reserve_frac * energyCapacity)
@@ -174,7 +190,7 @@ def simulate_dispatch(charge_bias: float,
         import_list.append(imp)
         loss_list.append(losses)
        
-    # Goes through the results and calculates the KPIs and stores them in a dictionary for later referral.
+    # KPI calculation (whole horizon)
     end_soc = soc
     delta_soc = end_soc - start
 
@@ -208,10 +224,10 @@ def simulate_dispatch(charge_bias: float,
         "Delta SoC (MWh)": delta_soc,
         "Energy Balance Check (MWh)": balance_check
     }
-    ## If return_series is False, only return the KPIs otherwise return both KPIs and time series data.
     if not return_series:
         return kpis
 
+    # Build time series DataFrame (original resolution); weekly views are derived later for export only.
     ts_col = next((c for c in ["Timestamp", "DATE-TIME", "Date & Time", "Date"] if c in sp_Merged.columns), None)
     idx = pd.to_datetime(sp_Merged[ts_col], errors="coerce") if ts_col else pd.RangeIndex(T)
 
@@ -293,6 +309,7 @@ def run_model_b_rule_based(high_demand_quantile: float = 0.80, return_series: bo
         import_list.append(imp)
         loss_list.append(losses)
 
+    # KPI calculation (whole horizon)
     end_soc = soc
     delta_soc = end_soc - start
     total_imports = float(np.sum(import_list))
@@ -327,6 +344,7 @@ def run_model_b_rule_based(high_demand_quantile: float = 0.80, return_series: bo
     if not return_series:
         return kpis
 
+    # Build time series DataFrame (original resolution); weekly views are derived later for export only.
     ts_col = next((c for c in ["Timestamp", "DATE-TIME", "Date & Time", "Date"] if c in sp_Merged.columns), None)
     idx = pd.to_datetime(sp_Merged[ts_col], errors="coerce") if ts_col else pd.RangeIndex(T)
     series_df = pd.DataFrame({
@@ -347,7 +365,6 @@ def _nobj_from_mode(mode: str) -> int:
     return 3 if mode == "all" else 2
 
 def configure_deap(mode: str):
-    """Configure global toolbox for (charge_bias, discharge_bias, reserve_frac) evolution."""
     from deap import creator
     for cls in ("FitnessMulti", "Individual"):
         if cls in creator.__dict__:
@@ -511,6 +528,75 @@ def run_model_d_pso(swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5,
     genes = [float(g) for g in gbest_pos.tolist()]
     print(f"PSO Best aggregate cost: {gbest_cost:.6f}, genes={ [round(g, 4) for g in genes] }")
     return genes, gbest_kpis
+
+# ---- Capacity sweep wrappers for NSGA-II and PSO
+def run_nsga2_for_capacity(capacity_mwh: float,
+                           pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, use_mp=False):
+    """
+    Reconfigure capacity, run NSGA-II, and return (capacity, hof, best_genes, best_kpis).
+    """
+    set_capacity(capacity_mwh)
+    # Keep NSGA-II toolbox/creator unchanged for consistency with the original implementation
+    random.seed(42); np.random.seed(42)
+    hof = run_model_c_nsga2(pop_size=pop_size, ngen=ngen, cxpb=cxpb, mutpb=mutpb, use_mp=use_mp)
+    if len(hof) == 0:
+        return capacity_mwh, hof, None, None
+    best = min(hof, key=lambda ind: ind.fitness.values[0])
+    best_genes = [float(best[0]), float(best[1]), float(best[2]), float(END_TARGET_CONST)]
+    best_kpis = simulate_dispatch(best[0], best[1], best[2], END_TARGET_CONST)
+    return capacity_mwh, hof, best_genes, best_kpis
+
+def run_pso_for_capacity(capacity_mwh: float,
+                         swarm_size=60, iters=60, w=0.7, c1=1.5, c2=1.5):
+    """
+    Reconfigure capacity, run PSO, and return (capacity, best_genes, best_kpis).
+    """
+    set_capacity(capacity_mwh)
+    random.seed(42); np.random.seed(42)
+    best_genes, best_kpis = run_model_d_pso(swarm_size=swarm_size, iters=iters, w=w, c1=c1, c2=c2)
+    return capacity_mwh, best_genes, best_kpis
+
+def run_capacity_sweep(model: str,
+                       capacities: list[float],
+                       nsga2_args: dict | None = None,
+                       pso_args: dict | None = None):
+    nsga2_args = nsga2_args or {}
+    pso_args = pso_args or {}
+    rows = []
+    details = {}
+    print(f"Capacity sweep started for model '{model}' with capacities: {capacities}")
+    for cap in capacities:
+        cap = float(cap)
+        if model == "c":
+            capacity, hof, genes, kpis = run_nsga2_for_capacity(
+                capacity_mwh=cap,
+                pop_size=nsga2_args.get("pop_size", 100),
+                ngen=nsga2_args.get("ngen", 40),
+                cxpb=nsga2_args.get("cxpb", 0.9),
+                mutpb=nsga2_args.get("mutpb", 0.1),
+                use_mp=nsga2_args.get("use_mp", False)
+            )
+            if kpis is None:
+                continue
+            rows.append({"Capacity (MWh)": capacity, **kpis})
+            details[capacity] = {"genes": genes, "hof": hof}
+            print(f"NSGA-II sweep cap={capacity:.1f} MWh -> Emissions={kpis['CO2 Emissions (tCO2)']:.4f}, Share={kpis['Solar Share (%)']:.2f}%")
+        elif model == "d":
+            capacity, genes, kpis = run_pso_for_capacity(
+                capacity_mwh=cap,
+                swarm_size=pso_args.get("swarm_size", 60),
+                iters=pso_args.get("iters", 60),
+                w=pso_args.get("w", 0.7),
+                c1=pso_args.get("c1", 1.5),
+                c2=pso_args.get("c2", 1.5)
+            )
+            rows.append({"Capacity (MWh)": capacity, **kpis})
+            details[capacity] = {"genes": genes}
+            print(f"PSO sweep cap={capacity:.1f} MWh -> Emissions={kpis['CO2 Emissions (tCO2)']:.4f}, Share={kpis['Solar Share (%)']:.2f}%")
+        else:
+            raise ValueError("Capacity sweep supports only 'c' (NSGA-II) or 'd' (PSO).")
+    df = pd.DataFrame(rows).sort_values("Capacity (MWh)")
+    return df, details
 
 # ---- MOPSO (multi-objective PSO)
 def _kpis_to_objectives(k: dict, mode: str):
@@ -705,7 +791,7 @@ def run_model_g_lp(mode: str = None,
     # Create LP
     prob = pl.LpProblem("LP_Dispatch", pl.LpMinimize)
 
-    # Variables
+    # Variables (per timestep, full horizon)
     soc = {t: pl.LpVariable(f"soc_{t}", lowBound=soc_lb, upBound=soc_ub) for t in range(T + 1)}
     direct = {t: pl.LpVariable(f"direct_{t}", lowBound=0.0) for t in range(T)}
     pv2st = {t: pl.LpVariable(f"pv2st_{t}", lowBound=0.0, upBound=max_power) for t in range(T)}
@@ -716,7 +802,7 @@ def run_model_g_lp(mode: str = None,
     # Initial SoC
     prob += soc[0] == start, "soc_initial"
 
-    # Constraints per timestep
+    # Constraints per timestep (match simulate_dispatch physics)
     for t in range(T):
         # PV split: direct + pv2st + export = PV
         prob += direct[t] + pv2st[t] + exp[t] == float(pv_series[t]), f"pv_split_{t}"
@@ -733,7 +819,7 @@ def run_model_g_lp(mode: str = None,
         # Discharge availability limited by energy above reserve (matches simulate_dispatch)
         prob += st2ld[t] <= float(eta_dch) * (soc[t] - reserve), f"discharge_available_{t}"
 
-        # SoC bounds are already enforced via variable bounds
+        # SoC bounds are enforced via variable bounds
 
     # Optional end-of-horizon SoC target (if provided)
     if end_target_frac is not None:
@@ -776,18 +862,19 @@ def run_model_g_lp(mode: str = None,
     if pl.LpStatus[status] != "Optimal":
         raise RuntimeError(f"LP did not find an optimal solution. Status: {pl.LpStatus[status]}")
 
-    # Extract solution
+    # Extract solution (original resolution); weekly views are derived later for export only.
     direct_list = [pl.value(direct[t]) for t in range(T)]
     pv2st_list = [pl.value(pv2st[t]) for t in range(T)]
     st2load_list = [pl.value(st2ld[t]) for t in range(T)]
     export_list = [pl.value(exp[t]) for t in range(T)]
     import_list = [pl.value(imp[t]) for t in range(T)]
-    soc_series = [pl.value(soc[t + 1]) for t in range(T)]  # SoC after step (aligns with simulate_dispatch)
+    soc_series = [pl.value(soc[t + 1]) for t in range(T)]
     loss_list = [
         pv2st_list[t] * (1.0 - float(eta_ch)) + st2load_list[t] * (1.0 / float(eta_dch) - 1.0)
         for t in range(T)
     ]
 
+    # KPI calculation (whole horizon)
     end_soc = float(pl.value(soc[T]))
     delta_soc = end_soc - start
 
@@ -889,9 +976,8 @@ def run_model_f_nsga3(pop_size=100, ngen=40, cxpb=0.9, mutpb=0.1, divisions=12, 
 
     return hof3
 
-# ---- Visualization helpers
+# ---- Visualization helpers (unchanged)
 def compare_kpis_bar(models: dict):
-    """Grouped bar chart comparing selected KPIs across models."""
     keys = ["Grid Imports (MWh)", "CO2 Emissions (tCO2)", "Solar Share (%)", "Solar Wasted (%)", "Storage Losses (MWh)"]
     x = list(models.keys())
     fig = go.Figure()
@@ -901,14 +987,13 @@ def compare_kpis_bar(models: dict):
     return fig
 
 def plot_dispatch_series(series_df: pd.DataFrame, title: str):
-    """Plot demand/PV/flows and SoC + losses over time."""
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         specs=[[{"secondary_y": True}], [{}]],
-                        row_heights=[0.7, 0.3], vertical_spacing=0.08)
-    fig.add_trace(go.Scatter(x=series_df.index, y=series_df["Demand"], name="Demand", line=dict(color="#333")), row=1, col=1, secondary_y=False)
-    fig.add_trace(go.Scatter(x=series_df.index, y=series_df["PV"], name="PV", line=dict(color="#2ca02c")), row=1, col=1, secondary_y=False)
-    fig.add_trace(go.Bar(x=series_df.index, y=series_df["Import"], name="Import", marker_color="#1f77b4", opacity=0.6), row=1, col=1, secondary_y=True)
-    fig.add_trace(go.Bar(x=series_df.index, y=series_df["Export"], name="Export", marker_color="#ff7f0e", opacity=0.6), row=1, col=1, secondary_y=True)
+                        row_heights=[0.6, 0.4], vertical_spacing=0.07)
+    fig.add_trace(go.Bar(x=series_df.index, y=series_df["Demand"], name="Demand", marker_color="#333"), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Bar(x=series_df.index, y=series_df["PV"], name="PV", marker_color="#2ca02c", opacity=0.7), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Bar(x=series_df.index, y=series_df["Import"], name="Import", marker_color="#1f77b4"), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Bar(x=series_df.index, y=series_df["Export"], name="Export", marker_color="#ff7f0e"), row=1, col=1, secondary_y=True)
     fig.add_trace(go.Scatter(x=series_df.index, y=series_df["PV->Storage"], name="PV->Storage", line=dict(dash="dot", color="#9467bd")), row=1, col=1, secondary_y=True)
     fig.add_trace(go.Scatter(x=series_df.index, y=series_df["Storage->Load"], name="Storage->Load", line=dict(dash="dot", color="#8c564b")), row=1, col=1, secondary_y=True)
     fig.add_trace(go.Scatter(x=series_df.index, y=series_df["SoC"], name="SoC (MWh)", line=dict(color="#17becf")), row=2, col=1)
@@ -916,17 +1001,16 @@ def plot_dispatch_series(series_df: pd.DataFrame, title: str):
     fig.update_yaxes(title_text="MW/MWh", row=1, col=1, secondary_y=False)
     fig.update_yaxes(title_text="Flows (MWh)", row=1, col=1, secondary_y=True)
     fig.update_yaxes(title_text="Energy (MWh)", row=2, col=1)
-    fig.update_layout(title=title, barmode="overlay",
+    fig.update_layout(title=title, barmode="group",
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
     return fig
 
 def plot_pareto_front(hof, title: str = "NSGA-II Pareto Front", mode: str = "all"):
-    """Plot NSGA-II Pareto front (color-coded by solar share if 3-objective)."""
     vals = [tuple(map(float, ind.fitness.values)) for ind in hof]
 
     if mode == "all":
-        x_vals = [v[0] for v in vals]               # Emissions
-        y_vals = [v[2] for v in vals]               # Storage Losses
+        x_vals = [v[0] for v in vals]
+        y_vals = [v[2] for v in vals]
         solar_share = [(1.0 - v[1]) * 100.0 for v in vals]
         fig = go.Figure(data=go.Scatter(
             x=x_vals, y=y_vals, mode="markers",
@@ -955,7 +1039,6 @@ def plot_pareto_front(hof, title: str = "NSGA-II Pareto Front", mode: str = "all
     return fig
 
 def plot_pareto_front_mopso(archive_objs: np.ndarray, mode: str = "all"):
-    """Plot MOPSO Pareto archive (color-coded by solar share in 3-objective mode)."""
     objs = np.asarray(archive_objs, dtype=float)
 
     if mode == "all":
@@ -978,7 +1061,7 @@ def plot_pareto_front_mopso(archive_objs: np.ndarray, mode: str = "all"):
         title, xt, yt = "MOPSO Pareto Front (Emissions)", "CO2 Emissions (tCO2)", "CO2 Emissions (tCO2)"
     elif mode == "solar_share":
         title, xt, yt = "MOPSO Pareto Front (Solar Share)", "1 - Solar Share", "1 - Solar Share"
-    else:
+    elif mode == "losses":
         title, xt, yt = "MOPSO Pareto Front (Losses)", "Storage Losses (MWh)", "Storage Losses (MWh)"
     fig = go.Figure(data=go.Scatter(x=x_vals, y=y_vals, mode="markers", name="MOPSO Pareto Front",
                                     marker=dict(size=8, color="#9467bd")))
@@ -1001,6 +1084,64 @@ def show_figure(fig, name="figure", offline=True):
             auto_open=False
         )
         print(f"Saved plot to: {outfile}")
+
+# ---- Weekly aggregation utilities (unchanged)
+def aggregate_weekly(series_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resample original-resolution dispatch series to weekly aggregates for readability/export.
+      - Energy flows summed per week; end-of-week SoC captured as the last value.
+      - Derived weekly Solar Share and Solar Wasted computed for visualization.
+    """
+    if not isinstance(series_df.index, pd.DatetimeIndex):
+        raise ValueError("Weekly aggregation requires a datetime index.")
+    # Week ending Sunday; change to 'W-MON' for Monday weeks if preferred
+    week_df = series_df.resample("W").agg({
+        "Demand": "sum",
+        "PV": "sum",
+        "Direct": "sum",
+        "PV->Storage": "sum",
+        "Storage->Load": "sum",
+        "Export": "sum",
+        "Import": "sum",
+        "Losses": "sum",
+        "SoC": "last"
+    })
+    week_df.rename(columns={"SoC": "End SoC"}, inplace=True)
+    # Derived weekly KPIs (guard against division by zero)
+    demand_nonzero = week_df["Demand"].replace(0, np.nan)
+    pv_nonzero = week_df["PV"].replace(0, np.nan)
+    week_df["Solar Share (%)"] = 100.0 * (week_df["Direct"] + week_df["Storage->Load"]) / demand_nonzero
+    week_df["Solar Wasted (%)"] = 100.0 * week_df["Export"] / pv_nonzero
+    week_df.fillna(0.0, inplace=True)
+    return week_df
+
+def plot_dispatch_series_weekly(week_df: pd.DataFrame, title: str):
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                        specs=[[{"secondary_y": True}], [{}]],
+                        row_heights=[0.6, 0.4], vertical_spacing=0.07)
+    fig.add_trace(go.Bar(x=week_df.index, y=week_df["Demand"], name="Demand", marker_color="#333"), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Bar(x=week_df.index, y=week_df["PV"], name="PV", marker_color="#2ca02c", opacity=0.7), row=1, col=1, secondary_y=False)
+    fig.add_trace(go.Bar(x=week_df.index, y=week_df["Import"], name="Import", marker_color="#1f77b4"), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Bar(x=week_df.index, y=week_df["Export"], name="Export", marker_color="#ff7f0e"), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Scatter(x=week_df.index, y=week_df["PV->Storage"], name="PV->Storage", line=dict(dash="dot", color="#9467bd")), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Scatter(x=week_df.index, y=week_df["Storage->Load"], name="Storage->Load", line=dict(dash="dot", color="#8c564b")), row=1, col=1, secondary_y=True)
+    fig.add_trace(go.Scatter(x=week_df.index, y=week_df["End SoC"], name="End SoC (MWh)", line=dict(color="#17becf")), row=2, col=1)
+    fig.add_trace(go.Scatter(x=week_df.index, y=week_df["Losses"], name="Losses (MWh)", line=dict(color="#d62728")), row=2, col=1)
+    fig.update_yaxes(title_text="Weekly Energy (MWh)", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Weekly Flows (MWh)", row=1, col=1, secondary_y=True)
+    fig.update_yaxes(title_text="Energy / Losses (MWh)", row=2, col=1)
+    fig.update_layout(title=title, barmode="group",
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0))
+    return fig
+
+def show_weekly_figure(fig, name: str, weekly_dir: str, offline: bool = True):
+    try:
+        fig.show(renderer="browser")
+    finally:
+        outfile = os.path.join(weekly_dir, f"{name}.html")
+        fig.write_html(outfile, include_plotlyjs=True if offline else "cdn",
+                       full_html=True, auto_open=False)
+        print(f"Saved weekly plot to: {outfile}")
 
 # ---- Script entry point
 if __name__ == "__main__":
@@ -1034,6 +1175,17 @@ if __name__ == "__main__":
                         choices=["all", "emissions", "solar_share", "losses"],
                         default="all",
                         help="Objectives selection: all=3 objectives; others duplicate single objective.")
+    # Output interval (raw vs weekly view-only)
+    parser.add_argument("--interval",
+                        choices=["raw", "weekly"],
+                        default="raw",
+                        help="Export granularity for dispatch series: raw=original timestep; weekly=aggregated view exported to 'Weekly' subfolder.")
+    # Capacity sweep (NSGA-II 'c' and PSO 'd' only)
+    parser.add_argument("--cap-sweep", type=str, default="",
+                        help="Comma-separated capacities in MWh to sweep (e.g., 500,1000,2000). Applies to models 'c' and 'd'.")
+    parser.add_argument("--cap-range", type=str, default="",
+                        help="Range sweep 'start,end,step' in MWh (e.g., 500,2000,250). Applies to models 'c' and 'd'.")
+
     args = parser.parse_args()
 
     OBJECTIVE_MODE = args.objective_set
@@ -1042,10 +1194,16 @@ if __name__ == "__main__":
     os.makedirs(EXPORT_DIR, exist_ok=True)
     print(f"Objective mode: {OBJECTIVE_MODE}. Exporting figures to: {EXPORT_DIR}")
 
+    # Weekly subfolder (view-only aggregation)
+    WEEKLY_DIR = None
+    if args.interval == "weekly":
+        WEEKLY_DIR = os.path.join(EXPORT_DIR, "Weekly")
+        os.makedirs(WEEKLY_DIR, exist_ok=True)
+        print(f"Weekly aggregation enabled. Weekly figures to: {WEEKLY_DIR}")
+
     configure_deap(OBJECTIVE_MODE)
 
     def print_kpis(title, k):
-        """Print KPIs in consistent order for readability."""
         print(f"\n=== {title} ===")
         order = ["Grid Imports (MWh)", "CO2 Emissions (tCO2)", "Solar Share (%)",
                  "Solar Wasted (%)", "Solar Direct to Load (MWh)",
@@ -1067,6 +1225,75 @@ if __name__ == "__main__":
     mopso_best_genes = None
     k_lp = None
 
+    # Parse capacity sweep inputs
+    sweep_caps: list[float] = []
+    if args.cap_sweep.strip():
+        try:
+            sweep_caps = [float(x) for x in args.cap_sweep.split(",")]
+        except Exception:
+            print("Invalid --cap-sweep format. Expected comma-separated numbers.")
+            sweep_caps = []
+    elif args.cap_range.strip():
+        try:
+            s, e, st = [float(x) for x in args.cap_range.split(",")]
+            if st == 0:
+                raise ValueError("Step must be non-zero.")
+            n = int(np.floor((e - s) / st)) + 1
+            sweep_caps = [s + i * st for i in range(max(n, 0))]
+        except Exception:
+            print("Invalid --cap-range format. Expected 'start,end,step' with numeric values.")
+            sweep_caps = []
+
+    # ---- Capacity sweep execution FIRST (before other models)
+    if sweep_caps:
+        if args.model not in ("c", "d", "all"):
+            print("Capacity sweep requested but model is not NSGA-II ('c') or PSO ('d'). Sweep skipped.")
+        else:
+            selected_model = args.model if args.model in ("c", "d") else "c"  # default to NSGA-II on 'all'
+            if args.model == "all":
+                print("Note: --model=all with capacity sweep will run NSGA-II sweep only to avoid extended runtimes.")
+            nsga2_args = dict(pop_size=args.pop_size, ngen=args.ngen, cxpb=args.cxpb, mutpb=args.mutpb, use_mp=args.mp)
+            pso_args = dict(swarm_size=args.pso_swarm, iters=args.pso_iters, w=args.pso_w, c1=args.pso_c1, c2=args.pso_c2)
+
+            sweep_df, sweep_details = run_capacity_sweep(selected_model, sweep_caps, nsga2_args=nsga2_args, pso_args=pso_args)
+
+            # Print tabular summary
+            print("\n=== Capacity Sweep Summary ===")
+            cols = ["Capacity (MWh)", "CO2 Emissions (tCO2)", "Solar Share (%)", "Storage Losses (MWh)",
+                    "Grid Imports (MWh)", "Solar Wasted (%)", "Solar Direct to Load (MWh)",
+                    "Solar to Storage (MWh)", "Storage to Load (MWh)"]
+            for _, row in sweep_df[cols].iterrows():
+                print(f"Cap={row['Capacity (MWh)']:.1f} | Em={row['CO2 Emissions (tCO2)']:.4f} "
+                      f"| Share={row['Solar Share (%)']:.2f}% | Losses={row['Storage Losses (MWh)']:.2f} "
+                      f"| Imports={row['Grid Imports (MWh)']:.2f} | Wasted={row['Solar Wasted (%)']:.2f}%")
+
+            # Export CSV summary to the objective subfolder
+            sweep_csv = os.path.join(EXPORT_DIR, "capacity_sweep_summary.csv")
+            sweep_df.to_csv(sweep_csv, index=False)
+            print(f"Saved capacity sweep summary CSV to: {sweep_csv}")
+
+            # Simple plot: emissions and solar share vs capacity
+            try:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=sweep_df["Capacity (MWh)"], y=sweep_df["CO2 Emissions (tCO2)"],
+                    mode="lines+markers", name="Emissions"
+                ))
+                fig.add_trace(go.Scatter(
+                    x=sweep_df["Capacity (MWh)"], y=sweep_df["Solar Share (%)"],
+                    mode="lines+markers", name="Solar Share (%)", yaxis="y2"
+                ))
+                fig.update_layout(
+                    title="Capacity Sweep: Emissions and Solar Share",
+                    xaxis_title="Battery Capacity (MWh)",
+                    yaxis=dict(title="CO2 Emissions (tCO2)"),
+                    yaxis2=dict(title="Solar Share (%)", overlaying="y", side="right")
+                )
+                show_figure(fig, "capacity_sweep")
+            except Exception as e:
+                print(f"Plotting failed for capacity sweep: {e}")
+
+    # ---- Run selected models (original resolution) AFTER sweep
     if args.model in ("a", "all"):
         k_a = run_model_a_no_storage(return_series=False)
         print_kpis("Model A - No Storage", k_a)
@@ -1133,11 +1360,11 @@ if __name__ == "__main__":
         k_lp = run_model_g_lp(mode=OBJECTIVE_MODE, reserve_frac=RESERVE_CONST, end_target_frac=None, weights=(0.5, 0.5), return_series=False)
         print_kpis("Model G - LP KPIs", k_lp)
 
-    # Visualization goes through the models results and plots to the relevant graphs and with NSGA-II on the paerto front which is to show the trade offs between different objectives.
+    # ---- Visualization (KPI comparison bar)
     models_for_bar = {}
     if k_a: models_for_bar["A - No Storage"] = k_a
     if k_b: models_for_bar["B - Rule-Based"] = k_b
-    if k_best: models_for_bar["C - NSGA-II"] = k_best
+    if 'k_best' in locals() and k_best: models_for_bar["C - NSGA-II"] = k_best
     if k_pso: models_for_bar["D - PSO"] = k_pso
     if k_mopso: models_for_bar["E - MOPSO"] = k_mopso
     if 'k_best3' in locals() and k_best3: models_for_bar["F - NSGA-III"] = k_best3
@@ -1146,29 +1373,44 @@ if __name__ == "__main__":
     if models_for_bar:
         show_figure(compare_kpis_bar(models_for_bar), "kpi_comparison")
 
-    if k_a:
+    # ---- Raw and optional weekly plotting/export helpers
+    def export_dispatch_with_optional_weekly(series_df: pd.DataFrame, base_name: str):
+        """
+        Export raw (original resolution) dispatch plots to objective subfolder.
+        If weekly export enabled, also create aggregated weekly plots and CSV under 'Weekly' subfolder.
+        """
+        show_figure(plot_dispatch_series(series_df, f"{base_name} Dispatch"), base_name.lower().replace(" ", "_"))
+        if WEEKLY_DIR:
+            week_df = aggregate_weekly(series_df)
+            week_fig = plot_dispatch_series_weekly(week_df, f"{base_name} Weekly Aggregated Dispatch")
+            show_weekly_figure(week_fig, base_name.lower().replace(" ", "_") + "_weekly", WEEKLY_DIR)
+            csv_path = os.path.join(WEEKLY_DIR, base_name.lower().replace(" ", "_") + "_weekly.csv")
+            week_df.to_csv(csv_path)
+            print(f"Saved weekly CSV to: {csv_path}")
+
+    # ---- Per-model series exports
+    if args.model in ("a", "all"):
         _, series_a = run_model_a_no_storage(return_series=True)
-        show_figure(plot_dispatch_series(series_a, "Model A - No Storage Dispatch"), "dispatch_model_a")
-    if k_b:
+        export_dispatch_with_optional_weekly(series_a, "Model A - No Storage")
+    if args.model in ("b", "all"):
         _, series_b = run_model_b_rule_based(high_demand_quantile=args.quantile, return_series=True)
-        show_figure(plot_dispatch_series(series_b, f"Model B - Rule-Based Dispatch (Q={args.quantile})"), "dispatch_model_b")
-    if best is not None:
+        export_dispatch_with_optional_weekly(series_b, f"Model B - Rule-Based (Q={args.quantile})")
+    if args.model in ("c", "all") and 'best' in locals() and best is not None:
         _, series_c = simulate_dispatch(best[0], best[1], best[2], END_TARGET_CONST, return_series=True)
-        show_figure(plot_dispatch_series(series_c, "Model C - NSGA-II Best Dispatch"), "dispatch_model_c")
+        export_dispatch_with_optional_weekly(series_c, "Model C - NSGA-II Best")
         show_figure(plot_pareto_front(hof, title="NSGA-II Pareto Front", mode=OBJECTIVE_MODE), "pareto_front")
-    if pso_best_genes is not None:
+    if args.model in ("d", "all") and pso_best_genes is not None:
         _, series_d = simulate_dispatch(*pso_best_genes, return_series=True)
-        show_figure(plot_dispatch_series(series_d, "Model D - PSO Best Dispatch"), "dispatch_model_d")
-    if mopso_best_genes is not None:
+        export_dispatch_with_optional_weekly(series_d, "Model D - PSO Best")
+    if args.model in ("e", "all") and mopso_best_genes is not None:
         _, series_e = simulate_dispatch(*mopso_best_genes, return_series=True)
-        show_figure(plot_dispatch_series(series_e, "Model E - MOPSO Best-by-First-Objective Dispatch"), "dispatch_model_e")
+        export_dispatch_with_optional_weekly(series_e, "Model E - MOPSO Best-by-First-Objective")
         if mopso_archive_objs is not None and len(mopso_archive_objs) > 0:
             show_figure(plot_pareto_front_mopso(mopso_archive_objs, mode=OBJECTIVE_MODE), "pareto_front_mopso")
-    if best3 is not None:
+    if args.model in ("f", "all") and 'best3' in locals() and best3 is not None:
         _, series_f = simulate_dispatch(best3[0], best3[1], best3[2], END_TARGET_CONST, return_series=True)
-        show_figure(plot_dispatch_series(series_f, "Model F - NSGA-III Best Dispatch"), "dispatch_model_f")
+        export_dispatch_with_optional_weekly(series_f, "Model F - NSGA-III Best")
         show_figure(plot_pareto_front(hof3, "NSGA-III Pareto Front", mode=OBJECTIVE_MODE), "pareto_front_nsga3")
-    if k_lp:
-        k_lp_series = run_model_g_lp(mode=OBJECTIVE_MODE, reserve_frac=RESERVE_CONST, end_target_frac=None, weights=(0.5, 0.5), return_series=True)
-        k_lp_vals, series_lp = k_lp_series
-        show_figure(plot_dispatch_series(series_lp, "Model G - LP Optimal Dispatch"), "dispatch_model_g")
+    if args.model in ("g", "all") and k_lp is not None:
+        k_lp_vals, series_lp = run_model_g_lp(mode=OBJECTIVE_MODE, reserve_frac=RESERVE_CONST, end_target_frac=None, weights=(0.5, 0.5), return_series=True)
+        export_dispatch_with_optional_weekly(series_lp, "Model G - LP Optimal Dispatch")
