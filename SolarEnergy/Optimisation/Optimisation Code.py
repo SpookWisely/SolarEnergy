@@ -83,8 +83,6 @@ sp_Merged["Supply"] = pd.to_numeric(sp_Merged["Supply"], errors="coerce")
 sp_Merged = sp_Merged.dropna(subset=["Demand", "Supply"])
 
 # ---- Constants
-oilEF = 0.73        # TCO2/MWh (not used directly; retained for possible future fuel mix calculations)
-gasEF = 0.40        # TCO2/MWh
 constantEF = 0.5186 # Grid emission factor (TCO2/MWh)
 END_TARGET_CONST = 0.50  # Constant end target fraction (unused in current dispatch logic)
 
