@@ -33,7 +33,7 @@ from deap import base, creator, tools, algorithms
 import random
 import multiprocessing
 
-"""
+
 tuner_subdirs = [
     'tuner_dir/blstm_tuning',
     'tuner_dir/lstm_tuning',
@@ -45,7 +45,7 @@ tuner_subdirs = [
 for subdir in tuner_subdirs:
     if os.path.exists(subdir):
         shutil.rmtree(subdir) 
-"""
+
 ###RMSE Lower the value the better.
 ##R2 the closer to 1 the better the better fitr of the model to the data.
 ##MSE Lower the value the better the model performance.
@@ -83,9 +83,33 @@ def create_sequences_with_time_3d(data, targets, seq_length):
         y.append(targets[i + seq_length])
     return np.array(X), np.array(y)
 
-#----#
+def split_train_val_test(X_seq, y_seq):
+    n_total = len(X_seq)
+    if n_total < 3:
+        raise ValueError("Not enough sequence samples to create train, validation, and test splits.")
 
+    n_test = max(1, int(n_total * 0.2))
+    if n_test >= n_total:
+        n_test = n_total - 1
 
+    n_train_val = n_total - n_test
+    n_val = max(1, int(n_train_val * 0.2))
+    if n_val >= n_train_val:
+        n_val = n_train_val - 1
+
+    X_train_val = X_seq[:n_train_val]
+    y_train_val = y_seq[:n_train_val]
+
+    X_test = X_seq[n_train_val:]
+    y_test = y_seq[n_train_val:]
+
+    X_train = X_train_val[:-n_val]
+    y_train = y_train_val[:-n_val]
+
+    X_val = X_train_val[-n_val:]
+    y_val = y_train_val[-n_val:]
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 random.seed(42)
 np.random.seed(42)
@@ -714,214 +738,10 @@ def xgbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
-def gbModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool):
-    demandDs = demandDs.copy()
-    supplyDs = supplyDs.copy() 
-    """
-    Demand GradientBoosting Results -
-    MSE: 62.5690
-    MAE: 5.4002
-    RMSE: 7.9101
-    R2: 0.9158
-    -----
-    Supply GradientBoosting Results - 
-    MSE: 1056.1014
-    MAE: 16.0954
-    RMSE: 32.4977
-    R2: 0.9031
-    """
-    if (ident == 1):
-    #----#        
-        demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
-        demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ',expand=True)
-        demandDs ['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
-        demandDs['DATE-TIME'] = pd.to_datetime(demandDs['DATE-TIME'], errors='coerce')
-
-        demandDs.dropna(subset=['MW','DATE-TIME'], inplace=True)
-   
-
-        demand = demandDs['MW'].values.reshape(-1,1)
-        datetime_series = demandDs['DATE-TIME']
-
-        hour = datetime_series.dt.hour.values.reshape(-1,1)
-        dayofweek = datetime_series.dt.dayofweek.values.reshape(-1,1)
-        month = datetime_series.dt.month.values.reshape(-1,1)
-
-        scaler_demand = MinMaxScaler()
-        scaler_hour = MinMaxScaler()
-        scaler_day = MinMaxScaler()
-        scaler_month = MinMaxScaler()
-
-        demand_scaled = scaler_demand.fit_transform(demand)
-        hour_scaled = scaler_hour.fit_transform(hour)
-        day_scaled = scaler_day.fit_transform(dayofweek)
-        month_scaled = scaler_month.fit_transform(month)
-
-        full_data = np.hstack((demand_scaled, hour_scaled, day_scaled, month_scaled))
-        targets = (demand_scaled)
-
-        seq_length = 1
-        X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-
-
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-
-        param_grid = {
-            'estimator__n_estimators': [50, 100],
-            'estimator__max_depth': [3, 5],
-            'estimator__learning_rate': [0.05, 0.1]
-        }
-        base_model = GradientBoostingRegressor(random_state=42)
-        model = MultiOutputRegressor(base_model)
-        grid = GridSearchCV(model, param_grid, cv=3, n_jobs=-1)
-        grid.fit(X_train, y_train)
-        model = grid.best_estimator_
-        model.fit(X_train, y_train)
-
-        y_pred = model.predict(X_test)
-
-        y_demand_pred = scaler_demand.inverse_transform(y_pred[:, 0].reshape(-1, 1))
-        y_demand_true = scaler_demand.inverse_transform(y_test[:, 0].reshape(-1, 1))
-
-
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
-        rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
-        modelName = "Gradient Boost"
-        results = [mse, mae, rmse, r2,modelName]
-
-        #----#
-        print('\n',"Demand GB Model Results:")
-        print("MSE: {:.4f}".format(mse))
-        print("MAE: {:.4f}".format(mae))
-        print("RMSE: {:.4f}".format(rmse))
-        print("R2: {:.4f}".format(r2))
-        if plots == True:
-            plt.figure(figsize=(10, 5))
-            plt.plot(y_demand_true, label='Actual')
-            plt.title(f'Gradient Boosting Model: Actual Demand')
-            plt.xlabel('Time')
-            plt.ylabel('MW')
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-
-
-            def plot_series(y_true, y_pred, label):
-                plt.figure(figsize=(10, 5))
-                plt.plot(y_true, label='Actual')
-                plt.plot(y_pred, label='Predicted')
-                plt.title(f'Gradient Boosting Model: Actual vs Predicted {label}')
-                plt.xlabel('Time')
-                plt.ylabel('MW')
-                plt.legend()
-                plt.tight_layout()
-                plt.show()
-
-            plot_series(y_demand_true, y_demand_pred, 'Demand')
-
-        return results
-    elif (ident == 2):
-
-        supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
-        supplyDs[['Date','Time']] = supplyDs['Date & Time'].str.split(' ',expand=True)
-        supplyDs ['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
-        supplyDs['Date & Time'] = pd.to_datetime(supplyDs['Date & Time'], errors='coerce')
-
-        supplyDs.dropna(subset=['MW','Date & Time'], inplace=True)
-
-        supply = supplyDs['MW'].values.reshape(-1,1)
-        datetime_series = supplyDs['Date & Time']
-
-        hour = datetime_series.dt.hour.values.reshape(-1,1)
-        dayofweek = datetime_series.dt.dayofweek.values.reshape(-1,1)
-        month = datetime_series.dt.month.values.reshape(-1,1)
-
-        scaler_supply = MinMaxScaler()
-        scaler_hour = MinMaxScaler()
-        scaler_day = MinMaxScaler()
-        scaler_month = MinMaxScaler()
-
-        supply_scaled = scaler_supply.fit_transform(supply)
-        hour_scaled = scaler_hour.fit_transform(hour)
-        day_scaled = scaler_day.fit_transform(dayofweek)
-        month_scaled = scaler_month.fit_transform(month)
-
-        full_data = np.hstack((supply_scaled, hour_scaled, day_scaled, month_scaled))
-        targets = (supply_scaled)
-
-        seq_length = 1
-        X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-
-
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        param_grid = {
-            'estimator__n_estimators': [50, 100],
-            'estimator__max_depth': [3, 5],
-            'estimator__learning_rate': [0.05, 0.1]
-        }
-        base_model = GradientBoostingRegressor(random_state=42)
-        model = MultiOutputRegressor(base_model)
-        grid = GridSearchCV(model, param_grid, cv=3, n_jobs=-1)
-        grid.fit(X_train, y_train)
-        model = grid.best_estimator_
-        model.fit(X_train, y_train)
-
-        y_pred = model.predict(X_test)
-
-        y_supply_pred = scaler_supply.inverse_transform(y_pred[:, 0].reshape(-1, 1))
-        y_supply_true = scaler_supply.inverse_transform(y_test[:, 0].reshape(-1, 1))
-
-
-        mse = mean_squared_error(y_supply_true, y_supply_pred)
-        mae = mean_absolute_error(y_supply_true, y_supply_pred)
-        rmse = np.sqrt(mse)
-        r2 = r2_score(y_supply_true, y_supply_pred)
-        modelName = "Gradient Boost"
-        results = [mse, mae, rmse, r2,modelName]
-
-        #----#
-        print('\n', "GB Model for Supply Data:")
-        print("MSE: {:.4f}".format(mse))
-        print("MAE: {:.4f}".format(mae))
-        print("RMSE: {:.4f}".format(rmse))
-        print("R2: {:.4f}".format(r2))
-        if plots == True:
-            plt.figure(figsize=(10, 5))
-            plt.plot(y_supply_true, label='Actual')
-            plt.title(f'Gradient Boosting Model: Actual Supply')
-            plt.xlabel('Time')
-            plt.ylabel('MW')
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-
-
-            def plot_series(y_true, y_pred, label):
-                plt.figure(figsize=(10, 5))
-                plt.plot(y_true, label='Actual')
-                plt.plot(y_pred, label='Predicted')
-                plt.title(f'Gradient Boosting Model: Actual vs Predicted {label}')
-                plt.xlabel('Time')
-                plt.ylabel('MW')
-                plt.legend()
-                plt.tight_layout()
-                plt.show()
-
-            plot_series(y_supply_true, y_supply_pred, 'Supply')
-        return results
-    else:
-        print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
-        return
 
 def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool):
     demandDs = demandDs.copy()
-    supplyDs = supplyDs.copy()    
+    supplyDs = supplyDs.copy()
     """
     Demand Bidirectional LSTM Results -
     MSE: 54.4676
@@ -929,66 +749,51 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
     RMSE: 7.3802
     R2: 0.9267
     -----
-    Supply Bidirectional LSTM Results - 
+    Supply Bidirectional LSTM Results -
     MSE: 938.3314
     MAE: 16.0176
     RMSE: 30.6322
     R2: 0.9139
     """
     if (ident == 1):
-    #----#        
-    ##Basic transformation for the base dataset
         demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
         demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ',expand=True)
-        demandDs ['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
+        demandDs['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
         demandDs['DATE-TIME'] = pd.to_datetime(demandDs['DATE-TIME'], errors='coerce')
         demandDs.dropna(subset=['MW','DATE-TIME'], inplace=True)
-   
-        ##Declaration of datetime and reshaping of the MW column
+
         demand = demandDs['MW'].values.reshape(-1,1)
         datetime_series = demandDs['DATE-TIME']
 
         hour = datetime_series.dt.hour.values.reshape(-1,1)
         dayofweek = datetime_series.dt.dayofweek.values.reshape(-1,1)
         month = datetime_series.dt.month.values.reshape(-1,1)
-        ##Feature Declaration for fitting later on.
+
         features = np.hstack([
-        demandDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            demandDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = demand
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(demand)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -999,19 +804,26 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                            callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
 
-        y_pred = best_model.predict(X_test)
+        y_pred = best_model.predict(X_test, verbose=0)
         y_demand_pred = scaler_y.inverse_transform(y_pred)
         y_demand_true = scaler_y.inverse_transform(y_test)
+
         mse = mean_squared_error(y_demand_true, y_demand_pred)
         mae = mean_absolute_error(y_demand_true, y_demand_pred)
         rmse = np.sqrt(mse)
@@ -1019,7 +831,6 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         modelName = "BLSTM"
         results = [mse, mae, rmse, r2, modelName]
 
-        #----#
         print('\n',"Demand BLSTM Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1035,7 +846,6 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
             plt.tight_layout()
             plt.show()
 
-
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
                 plt.plot(y_true, label='Actual')
@@ -1050,13 +860,12 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
             plot_series(y_demand_true, y_demand_pred, 'Demand')
 
         return results
-    elif (ident == 2):
 
+    elif (ident == 2):
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
         supplyDs[['Date','Time']] = supplyDs['Date & Time'].str.split(' ',expand=True)
-        supplyDs ['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
+        supplyDs['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
         supplyDs['Date & Time'] = pd.to_datetime(supplyDs['Date & Time'], errors='coerce')
-
         supplyDs.dropna(subset=['MW','Date & Time'], inplace=True)
 
         supply = supplyDs['MW'].values.reshape(-1,1)
@@ -1067,41 +876,30 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         month = datetime_series.dt.month.values.reshape(-1,1)
 
         features = np.hstack([
-        supplyDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            supplyDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = supply
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(supply)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -1112,27 +910,33 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                            callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
 
-        y_pred = best_model.predict(X_test)
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+        y_pred = best_model.predict(X_test, verbose=0)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
+
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
         modelName = "BLSTM"
         results = [mse, mae, rmse, r2, modelName]
 
-        #----#
         print('\n', "BLSTM Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1140,14 +944,13 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
         print("R2: {:.4f}".format(r2))
         if plots == True:
             plt.figure(figsize=(10, 5))
-            plt.plot(y_demand_true, label='Actual')
+            plt.plot(y_supply_true, label='Actual')
             plt.title(f'BLSTM Model: Actual Supply')
             plt.xlabel('Time')
             plt.ylabel('MW')
             plt.legend()
             plt.tight_layout()
             plt.show()
-
 
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
@@ -1160,7 +963,8 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
                 plt.tight_layout()
                 plt.show()
 
-            plot_series(y_demand_true, y_demand_pred, 'Supply')
+            plot_series(y_supply_true, y_supply_pred, 'Supply')
+
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
@@ -1168,7 +972,7 @@ def biDirectionalLSTMDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, p
 
 def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool):
     demandDs = demandDs.copy()
-    supplyDs = supplyDs.copy()    
+    supplyDs = supplyDs.copy()
     """
     Demand LSTM Results -
     MSE: 73.2593
@@ -1176,66 +980,51 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
     RMSE: 8.5592
     R2: 0.9014
     -----
-    Supply LSTM Results - 
+    Supply LSTM Results -
     MSE: 1048.5297
     MAE: 17.9746
     RMSE: 32.3810
     R2: 0.9038
     """
     if (ident == 1):
-    #----#        
-    ##Basic transformation for the base dataset
         demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
         demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ',expand=True)
-        demandDs ['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
+        demandDs['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
         demandDs['DATE-TIME'] = pd.to_datetime(demandDs['DATE-TIME'], errors='coerce')
         demandDs.dropna(subset=['MW','DATE-TIME'], inplace=True)
-   
-        ##Declaration of datetime and reshaping of the MW column
+
         demand = demandDs['MW'].values.reshape(-1,1)
         datetime_series = demandDs['DATE-TIME']
 
         hour = datetime_series.dt.hour.values.reshape(-1,1)
         dayofweek = datetime_series.dt.dayofweek.values.reshape(-1,1)
         month = datetime_series.dt.month.values.reshape(-1,1)
-        ##Feature Declaration for fitting later on.
+
         features = np.hstack([
-        demandDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            demandDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = demand
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(demand)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -1246,17 +1035,23 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                          callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
 
-        y_pred = best_model.predict(X_test)
+        y_pred = best_model.predict(X_test, verbose=0)
         y_demand_pred = scaler_y.inverse_transform(y_pred)
         y_demand_true = scaler_y.inverse_transform(y_test)
         mse = mean_squared_error(y_demand_true, y_demand_pred)
@@ -1265,8 +1060,7 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
         r2 = r2_score(y_demand_true, y_demand_pred)
         modelName = "LSTM"
         results = [mse, mae, rmse, r2, modelName]
-        
-        #----#
+
         print('\n',"Demand LSTM Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1282,7 +1076,6 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
             plt.tight_layout()
             plt.show()
 
-
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
                 plt.plot(y_true, label='Actual')
@@ -1297,13 +1090,12 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
             plot_series(y_demand_true, y_demand_pred, 'Demand')
 
         return results
-    elif (ident == 2):
 
+    elif (ident == 2):
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
         supplyDs[['Date','Time']] = supplyDs['Date & Time'].str.split(' ',expand=True)
-        supplyDs ['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
+        supplyDs['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
         supplyDs['Date & Time'] = pd.to_datetime(supplyDs['Date & Time'], errors='coerce')
-
         supplyDs.dropna(subset=['MW','Date & Time'], inplace=True)
 
         supply = supplyDs['MW'].values.reshape(-1,1)
@@ -1314,42 +1106,30 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
         month = datetime_series.dt.month.values.reshape(-1,1)
 
         features = np.hstack([
-        supplyDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            supplyDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = supply
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(supply)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -1360,27 +1140,32 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                          callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
-        
-        y_pred = best_model.predict(X_test)
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+
+        y_pred = best_model.predict(X_test, verbose=0)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
         modelName = "LSTM"
         results = [mse, mae, rmse, r2, modelName]
 
-        #----#
         print('\n', "LSTM Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1388,14 +1173,13 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
         print("R2: {:.4f}".format(r2))
         if plots == True:
             plt.figure(figsize=(10, 5))
-            plt.plot(y_demand_true, label='Actual')
+            plt.plot(y_supply_true, label='Actual')
             plt.title(f'LSTM Model: Actual Supply')
             plt.xlabel('Time')
             plt.ylabel('MW')
             plt.legend()
             plt.tight_layout()
             plt.show()
-
 
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
@@ -1408,15 +1192,15 @@ def LSTMModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:boo
                 plt.tight_layout()
                 plt.show()
 
-            plot_series(y_demand_true, y_demand_pred, 'Supply')
-        return results 
+            plot_series(y_supply_true, y_supply_pred, 'Supply')
+        return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
 
 def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool):
     demandDs = demandDs.copy()
-    supplyDs = supplyDs.copy()    
+    supplyDs = supplyDs.copy()
     """
     Demand GRU Results -
     MSE: 84.4424
@@ -1424,66 +1208,51 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
     RMSE: 9.1893
     R2: 0.8864
     -----
-    Supply GRU Results - 
+    Supply GRU Results -
     MSE: 992.8610
     MAE: 18.6059
     RMSE: 31.5097
     R2: 0.9089
     """
     if (ident == 1):
-    #----#        
-    ##Basic transformation for the base dataset
         demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
         demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ',expand=True)
-        demandDs ['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
+        demandDs['MW'] = pd.to_numeric(demandDs['MW'],errors='coerce')
         demandDs['DATE-TIME'] = pd.to_datetime(demandDs['DATE-TIME'], errors='coerce')
         demandDs.dropna(subset=['MW','DATE-TIME'], inplace=True)
-   
-        ##Declaration of datetime and reshaping of the MW column
+
         demand = demandDs['MW'].values.reshape(-1,1)
         datetime_series = demandDs['DATE-TIME']
 
         hour = datetime_series.dt.hour.values.reshape(-1,1)
         dayofweek = datetime_series.dt.dayofweek.values.reshape(-1,1)
         month = datetime_series.dt.month.values.reshape(-1,1)
-        ##Feature Declaration for fitting later on.
+
         features = np.hstack([
-        demandDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            demandDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = demand
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(demand)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -1494,17 +1263,23 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                          callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
-        # Use best_model for final prediction
-        y_pred = best_model.predict(X_test)
+
+        y_pred = best_model.predict(X_test, verbose=0)
         y_demand_pred = scaler_y.inverse_transform(y_pred)
         y_demand_true = scaler_y.inverse_transform(y_test)
         mse = mean_squared_error(y_demand_true, y_demand_pred)
@@ -1513,8 +1288,7 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         r2 = r2_score(y_demand_true, y_demand_pred)
         modelName = "GRU"
         results = [mse, mae, rmse, r2, modelName]
-        
-        #----#
+
         print('\n',"Demand GRU Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1530,7 +1304,6 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
             plt.tight_layout()
             plt.show()
 
-
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
                 plt.plot(y_true, label='Actual')
@@ -1544,14 +1317,13 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
 
             plot_series(y_demand_true, y_demand_pred, 'Demand')
 
-        return results 
-    elif (ident == 2):
+        return results
 
+    elif (ident == 2):
         supplyDs['Date & Time'] = supplyDs['Date & Time'].astype(str)
         supplyDs[['Date','Time']] = supplyDs['Date & Time'].str.split(' ',expand=True)
-        supplyDs ['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
+        supplyDs['MW'] = pd.to_numeric(supplyDs['MW'], errors='coerce')
         supplyDs['Date & Time'] = pd.to_datetime(supplyDs['Date & Time'], errors='coerce')
-
         supplyDs.dropna(subset=['MW','Date & Time'], inplace=True)
 
         supply = supplyDs['MW'].values.reshape(-1,1)
@@ -1562,46 +1334,30 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         month = datetime_series.dt.month.values.reshape(-1,1)
 
         features = np.hstack([
-        supplyDs['MW'].values.reshape(-1, 1),
-        hour.reshape(-1, 1),
-        dayofweek.reshape(-1, 1),
-        month.reshape(-1, 1)
+            supplyDs['MW'].values.reshape(-1, 1),
+            hour.reshape(-1, 1),
+            dayofweek.reshape(-1, 1),
+            month.reshape(-1, 1)
         ])
 
         scaler_X = MinMaxScaler()
         scaler_y = MinMaxScaler()
-        
+
         X_scaled = scaler_X.fit_transform(features)
-        targets = supply
-
-      
-        
-        X_scaled = scaler_X.fit_transform(features)
-        y_scaled = scaler_y.fit_transform(targets)
-
-        # Suppose seq_length = 1, num_features = 4 (MW, hour, dayofweek, month)
-        
-
+        y_scaled = scaler_y.fit_transform(supply)
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
 
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-        
-        ##split_index = int(len(X_reshaped) * 0.8)
-        ##X_train, X_test = X_reshaped[:split_index], X_reshaped[split_index:]
-        ##y_train, y_test = y_scaled[:split_index], y_scaled[split_i
-        
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'units': [64, 100],
             'dropout': [0.2, 0.3]
         }
+
         for units in param_grid['units']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
@@ -1612,27 +1368,32 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                     Dense(1)
                 ])
                 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-                early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test),
-                          callbacks=[early_stopping], verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (units, dropout)
                     best_model = model
-        # Use best_model for final prediction
-        y_pred = best_model.predict(X_test)
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+
+        y_pred = best_model.predict(X_test, verbose=0)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
         modelName = "GRU"
         results = [mse, mae, rmse, r2, modelName]
 
-        #----#
         print('\n', "GRU Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -1640,14 +1401,13 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
         print("R2: {:.4f}".format(r2))
         if plots == True:
             plt.figure(figsize=(10, 5))
-            plt.plot(y_demand_true, label='Actual')
+            plt.plot(y_supply_true, label='Actual')
             plt.title(f'GRU Model: Actual Supply')
             plt.xlabel('Time')
             plt.ylabel('MW')
             plt.legend()
             plt.tight_layout()
             plt.show()
-
 
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
@@ -1660,12 +1420,11 @@ def GRUModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool
                 plt.tight_layout()
                 plt.show()
 
-            plot_series(y_demand_true, y_demand_pred, 'Supply')
+            plot_series(y_supply_true, y_supply_pred, 'Supply')
         return results
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
-##
 def SVRModelDS(demandDs:pd.DataFrame,supplyDs:pd.DataFrame,ident:int, plots:bool):
     demandDs = demandDs.copy()
     supplyDs = supplyDs.copy()    
@@ -1861,22 +1620,19 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
     RMSE: 12.1746
     R2: 0.8006
     -----
-    Supply MLP Results - 
+    Supply MLP Results -
     MSE: 1193.7714
     MAE: 19.9199
     RMSE: 34.5510
     R2: 0.8905
     """
     if ident == 1:
-        #----#        
-        # Basic transformation for the base dataset
         demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
         demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ', expand=True)
         demandDs['MW'] = pd.to_numeric(demandDs['MW'], errors='coerce')
         demandDs['DATE-TIME'] = pd.to_datetime(demandDs['DATE-TIME'], errors='coerce')
         demandDs.dropna(subset=['MW', 'DATE-TIME'], inplace=True)
 
-        # Declaration of datetime and reshaping of the MW column
         demand = demandDs['MW'].values.reshape(-1, 1)
         datetime_series = demandDs['DATE-TIME']
 
@@ -1894,15 +1650,12 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         day_scaled = scaler_day.fit_transform(dayofweek)
         month_scaled = scaler_month.fit_transform(month)
 
-        # Declare full_data for sequence creation
         full_data = np.hstack((demand_scaled, hour_scaled, day_scaled, month_scaled))
         targets = demand_scaled
 
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
         model = Sequential([
             Dense(128, activation='relu', input_dim=X_train.shape[1]),
@@ -1915,9 +1668,18 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         model.compile(optimizer='adam', loss='mse')
 
-        model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test))
+        early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+        model.fit(
+            X_train,
+            y_train,
+            epochs=100,
+            batch_size=16,
+            validation_data=(X_val, y_val),
+            callbacks=[early_stopping],
+            verbose=0
+        )
 
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(X_test, verbose=0)
 
         y_demand_pred = scaler_demand.inverse_transform(y_pred)
         y_demand_true = scaler_demand.inverse_transform(y_test)
@@ -1983,15 +1745,12 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         day_scaled = scaler_day.fit_transform(dayofweek)
         month_scaled = scaler_month.fit_transform(month)
 
-        # Declare full_data for sequence creation
         full_data = np.hstack((supply_scaled, hour_scaled, day_scaled, month_scaled))
         targets = supply_scaled
 
         seq_length = 1
         X, y = create_sequences_with_time_flatten(full_data, targets, seq_length)
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
         model = Sequential([
             Dense(128, activation='relu', input_dim=X_train.shape[1]),
@@ -2004,9 +1763,18 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         model.compile(optimizer='adam', loss='mse')
 
-        model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test))
+        early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+        model.fit(
+            X_train,
+            y_train,
+            epochs=100,
+            batch_size=16,
+            validation_data=(X_val, y_val),
+            callbacks=[early_stopping],
+            verbose=0
+        )
 
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(X_test, verbose=0)
 
         y_supply_pred = scaler_supply.inverse_transform(y_pred)
         y_supply_true = scaler_supply.inverse_transform(y_test)
@@ -2050,10 +1818,9 @@ def MLPModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
         return
-
 def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots:bool):
     demandDs = demandDs.copy()
-    supplyDs = supplyDs.copy() 
+    supplyDs = supplyDs.copy()
     """
     Demand CNN Results -
     MSE: 683.9287
@@ -2061,7 +1828,7 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
     RMSE: 26.1520
     R2: 0.0798
     -----
-    Supply CNN Results - 
+    Supply CNN Results -
     MSE: 1283.5096
     MAE: 19.5253
     RMSE: 35.8261
@@ -2069,7 +1836,6 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
     """
 
     if ident == 1:
-        #----#        
         demandDs['DATE-TIME'] = demandDs['DATE-TIME'].astype(str)
         demandDs[['Date', 'Time']] = demandDs['DATE-TIME'].str.split(' ', expand=True)
         demandDs['MW'] = pd.to_numeric(demandDs['MW'], errors='coerce')
@@ -2098,39 +1864,45 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'filters': [32, 64],
             'dropout': [0.2, 0.3]
         }
+
         for filters in param_grid['filters']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
                     Conv1D(filters, kernel_size=1, activation='relu', input_shape=(seq_length, X_train.shape[2])),
                     MaxPooling1D(pool_size=1),
                     Dropout(dropout),
-                    Conv1D(filters*2, kernel_size=1, activation='relu'),
+                    Conv1D(filters * 2, kernel_size=1, activation='relu'),
                     Dropout(dropout),
                     Flatten(),
                     Dense(32, activation='relu'),
                     Dense(1)
                 ])
                 model.compile(optimizer='adam', loss='mse')
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test), verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (filters, dropout)
                     best_model = model
-        # Use best_model for final prediction
-        y_pred = best_model.predict(X_test)
+
+        y_pred = best_model.predict(X_test, verbose=0)
         y_demand_pred = scaler_y.inverse_transform(y_pred)
         y_demand_true = scaler_y.inverse_transform(y_test)
         mse = mean_squared_error(y_demand_true, y_demand_pred)
@@ -2140,7 +1912,6 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         modelName = "CNN"
         results = [mse, mae, rmse, r2, modelName]
         
-        #---#
         print('\n', "Demand CNN Model Results:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -2155,7 +1926,6 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
             plt.legend()
             plt.tight_layout()
             plt.show()
-
 
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
@@ -2201,50 +1971,54 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
 
         seq_length = 1
         X, y = create_sequences_with_time_3d(X_scaled, y_scaled, seq_length)
-
-        split_index = int(len(X) * 0.8)
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
+        X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X, y)
 
         best_score = float('inf')
-        best_params = None
         best_model = None
         param_grid = {
             'filters': [32, 64],
             'dropout': [0.2, 0.3]
         }
+
         for filters in param_grid['filters']:
             for dropout in param_grid['dropout']:
                 model = Sequential([
                     Conv1D(filters, kernel_size=1, activation='relu', input_shape=(seq_length, X_train.shape[2])),
                     MaxPooling1D(pool_size=1),
                     Dropout(dropout),
-                    Conv1D(filters*2, kernel_size=1, activation='relu'),
+                    Conv1D(filters * 2, kernel_size=1, activation='relu'),
                     Dropout(dropout),
                     Flatten(),
                     Dense(32, activation='relu'),
                     Dense(1)
                 ])
                 model.compile(optimizer='adam', loss='mse')
-                model.fit(X_train, y_train, epochs=30, batch_size=16, validation_data=(X_test, y_test), verbose=0)
-                y_pred = model.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                model.fit(
+                    X_train,
+                    y_train,
+                    epochs=30,
+                    batch_size=16,
+                    validation_data=(X_val, y_val),
+                    callbacks=[early_stopping],
+                    verbose=0
+                )
+                y_val_pred = model.predict(X_val, verbose=0)
+                mse = mean_squared_error(y_val, y_val_pred)
                 if mse < best_score:
                     best_score = mse
-                    best_params = (filters, dropout)
                     best_model = model
-        # Use best_model for final prediction
-        y_pred = best_model.predict(X_test)
-        y_demand_pred = scaler_y.inverse_transform(y_pred)
-        y_demand_true = scaler_y.inverse_transform(y_test)
-        mse = mean_squared_error(y_demand_true, y_demand_pred)
-        mae = mean_absolute_error(y_demand_true, y_demand_pred)
+
+        y_pred = best_model.predict(X_test, verbose=0)
+        y_supply_pred = scaler_y.inverse_transform(y_pred)
+        y_supply_true = scaler_y.inverse_transform(y_test)
+        mse = mean_squared_error(y_supply_true, y_supply_pred)
+        mae = mean_absolute_error(y_supply_true, y_supply_pred)
         rmse = np.sqrt(mse)
-        r2 = r2_score(y_demand_true, y_demand_pred)
+        r2 = r2_score(y_supply_true, y_supply_pred)
         modelName = "CNN"
         results = [mse, mae, rmse, r2, modelName]
         
-        #---#
         print('\n', "CNN Model for Supply Data:")
         print("MSE: {:.4f}".format(mse))
         print("MAE: {:.4f}".format(mae))
@@ -2252,14 +2026,13 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
         print("R2: {:.4f}".format(r2))
         if plots == True:
             plt.figure(figsize=(10, 5))
-            plt.plot(y_demand_true, label='Actual')
+            plt.plot(y_supply_true, label='Actual')
             plt.title(f'CNN Model: Actual Supply')
             plt.xlabel('Time')
             plt.ylabel('MW')
             plt.legend()
             plt.tight_layout()
             plt.show()
-
 
             def plot_series(y_true, y_pred, label):
                 plt.figure(figsize=(10, 5))
@@ -2272,15 +2045,13 @@ def CNNModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots
                 plt.tight_layout()
                 plt.show()
 
-            plot_series(y_demand_true, y_demand_pred, 'Supply')
-
+            plot_series(y_supply_true, y_supply_pred, 'Supply')
 
         return results
 
     else:
         print("Invalid identifier. Please use 1 for demand data or 2 for supply data.")
-        return
-    
+        return    
 
 def GBDTModelDS(demandDs: pd.DataFrame, supplyDs: pd.DataFrame, ident: int, plots:bool):
     demandDs = demandDs.copy()
@@ -2540,7 +2311,6 @@ def BetterModelSelectionMethod(ModelArray: list):
 dem_TREE = decisionTreeModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
 dem_RF = randomForestModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
 dem_XGB = xgbModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
-dem_GB = gbModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
 dem_BLSTM = biDirectionalLSTMDS(sp_DemandDef, sp_SupplyDef, 1, False)
 dem_LSTM = LSTMModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
 dem_GRU = GRUModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
@@ -2552,14 +2322,13 @@ dem_GBDT = GBDTModelDS(sp_DemandDef, sp_SupplyDef, 1, False)
 ##dem_NSGA3_CNN = NSGA3_CNN_ModelDS(sp_DemandDef, sp_SupplyDef, 1)
 ##demandModelresults = [dem_TREE, dem_RF, dem_XGB, dem_GB, dem_BLSTM, dem_LSTM, dem_GRU, dem_SVR, dem_MLP, dem_CNN, dem_GBDT, dem_NSGA2_CNN, dem_NSGA3_CNN]
 
-demandModelresults = [dem_TREE, dem_RF, dem_XGB, dem_GB, dem_BLSTM, dem_LSTM, dem_GRU, dem_SVR, dem_MLP, dem_CNN, dem_GBDT]
+demandModelresults = [dem_TREE, dem_RF, dem_XGB, dem_BLSTM, dem_LSTM, dem_GRU, dem_SVR, dem_MLP, dem_CNN, dem_GBDT]
 demandBestResultsOrdered = BetterModelSelectionMethod(demandModelresults)
 
 
 sup_TREE = decisionTreeModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_RF = randomForestModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_XGB = xgbModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
-sup_GB = gbModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_BLSTM = biDirectionalLSTMDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_LSTM = LSTMModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 sup_GRU = GRUModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
@@ -2572,7 +2341,7 @@ sup_GBDT = GBDTModelDS(sp_DemandDef, sp_SupplyDef, 2,False)
 #sup_NSGA3_CNN = NSGA3_CNN_ModelDS(sp_WeatherxDem,sp_WeatherxSup,2) 
 ##supplyModelresults = [sup_TREE, sup_RF, sup_XGB, sup_GB, sup_BLSTM,sup_LSTM, sup_GRU, sup_SVR, sup_MLP, sup_CNN,sup_GBDT, sup_NSGA2_CNN,sup_NSGA3_CNN]
 
-supplyModelresults = [sup_TREE, sup_RF, sup_XGB, sup_GB, sup_BLSTM,sup_LSTM, sup_GRU, sup_SVR, sup_MLP, sup_CNN,sup_GBDT]
+supplyModelresults = [sup_TREE, sup_RF, sup_XGB, sup_BLSTM,sup_LSTM, sup_GRU, sup_SVR, sup_MLP, sup_CNN,sup_GBDT]
 supplyBestResultsOrdered = BetterModelSelectionMethod(supplyModelresults)
 
 

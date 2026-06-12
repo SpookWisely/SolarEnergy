@@ -12,8 +12,6 @@ So when looking at the comparison between my code and that of olivers the key po
   in comparison to that of the daily time sequencing.
 - Overall in regards to the performance matrixs given from the monthly testing for example with the Final results table from the "SupplyXDemandXWeather" dataset
   the best result is that of BLSTM and even that has a negative fitting value which I feel would be remedied with much larger dataset, For example mulitple years merged into one dataset.
-- But as it stands with the given dataframe I strong believe that 24 hour sequencing is the best approach due to the aforementioned above reasoning and the results in comparison
-  do back up this point.
 - The third approach being that of hourly, overall the results end up being slightly better than that of daily with the cost being that to performance as due to
   the increase in size of the data from 364 blocks from daily to that 8760 alot of the models espeically the deep learning one take significantly longer to run which 
   does impact testing.

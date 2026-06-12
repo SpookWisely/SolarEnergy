@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>bfb0cc08-4365-4e67-9bff-470b4a9af86a</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Optimisation\Optimisation Code.py</StartupFile>
+    <StartupFile>80-20 Code &amp; Graphs\Code\Daily\DemandxSupplyxWeather - Daily - 80-20.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -54,9 +54,11 @@
     <Compile Include="Deprecated Code\Single Weather Files\DemandxWeather - Daily .py" />
     <Compile Include="Deprecated Code\Single Weather Files\DemandxWeather - Monthly.py" />
     <Compile Include="Deprecated Code\SupplyxDemand.py" />
+    <Compile Include="Optimisation\Cleaning Optimisation\Altered Optimisation Code.py" />
     <Compile Include="Optimisation\Optimisation Code.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="70-30 Plots\Hourly\SupplyXWeatherXDemand\Final Results Table Full Merged - Hrly.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Base 80-20\BLSTM\Class-BLSTM-Dem.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Base 80-20\BLSTM\Class-BLSTM-Sup.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Base 80-20\CNN\Class-CNN-Dem.PNG" />
@@ -83,14 +85,14 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Classifcations\Fully Merged - Hourly\Base 80-20\XGB\Class-XGB-Sup.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandSolo\Daily-Dem-SVR-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandSolo\Daily-Dem-SVR.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandSolo\Final Results Table DemandSolo - Daily - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandSolo\Final Results Table DemandSolo - Daily - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\BLSTM-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\BLSTM-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\CNN-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\CNN-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\DT-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\DT-Sup.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\Final Results Table FullyMerged- Daily - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\Final Results Table FullyMerged- Daily - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\GBDT-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\GBDT-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXSupplyXWeather\GradBs-Dem.png" />
@@ -133,10 +135,10 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXWeather\Daily-DemXWeth-SVR.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXWeather\Daily-DemXWeth-XGB-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXWeather\Daily-DemXWeth-XGB.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXWeather\Final Results Table DemandXWeather - Daily - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\DemandXWeather\Final Results Table DemandXWeather - Daily - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplySolo\Daily-Sup-SVR-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplySolo\Daily-Sup-SVR.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplySolo\Final Results Table SupplySolo - Daily - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplySolo\Final Results Table SupplySolo - Daily - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-BLSTM-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-BLSTM.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-CNN-Actual.png" />
@@ -159,10 +161,10 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-SVR.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-XGB-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Daily-SupXWeth-XGB.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Final Results Table SupplyXWeather - Daily - 80-20.PNG" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\Folder Structure.txt" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Daily\SupplyXWeather\Final Results Table SupplyXWeather - Daily - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\Alternative Implementation\Feature Importance Implemented Results\Final Results Tables\Final Results Table - Importance.PNG" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Final Results Table DemandSolo - Hourly - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Final Results Table DemandSolo - Hourly - 80-20.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Hrly-Dem-SVR-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandSolo\Hrly-Dem-SVR.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\BLSTM-Dem.png" />
@@ -171,7 +173,7 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\CNN-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\DT-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\DT-Sup.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\Final Results Table FullyMerged - Hourly - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\Final Results Table FullyMerged - Hourly - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\GBDT-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\GBDT-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\GradBs-Dem.png" />
@@ -192,7 +194,7 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\SVR-Sup.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\XGB-Dem.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXSupplyXWeather\XGB-Sup.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Final Results Table DemandXWeather- Hourly - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Final Results Table DemandXWeather- Hourly - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-BLSTM-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-BLSTM.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-CNN-Actual.png" />
@@ -215,10 +217,10 @@
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-SVR.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-XGB-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\DemandXWeather\Hourly -DemXWeth-XGB.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplySolo\Final Results Table SupplySolo - Hourly - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplySolo\Final Results Table SupplySolo - Hourly - 80-20.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplySolo\Hrly-Sup-SVR-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplySolo\Hrly-Sup-SVR.png" />
-    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\Final Results Table SupplyXWeather- Hourly - 80-20.PNG" />
+    <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\Final Results Table SupplyXWeather- Hourly - 80-20.PNG.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\Hourly -SupXWeth-BLSTM-Actual.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\Hourly -SupXWeth-BLSTM.png" />
     <Content Include="80-20 Code &amp; Graphs\80-20 Plots,Importance,Classification\Hourly\SupplyXWeather\Hourly -SupXWeth-CNN-Actual.png" />
@@ -602,7 +604,6 @@
     <Content Include="70-30 Plots\Hourly\SupplySolo\Hrly-Sup-SVR.png" />
     <Content Include="70-30 Plots\Hourly\SupplySolo\Hrly-Sup-XGB-Actual.png" />
     <Content Include="70-30 Plots\Hourly\SupplySolo\Hrly-Sup-XGB.png" />
-    <Content Include="70-30 Plots\Hourly\SupplyXWeatherXDemand\Final Results Table Full Merged - Hrly.PNG" />
     <Content Include="70-30 Plots\Hourly\SupplyXWeatherXDemand\Hrly-FullMerged-BLSTM-Dem.png" />
     <Content Include="70-30 Plots\Hourly\SupplyXWeatherXDemand\Hrly-FullMerged-BLSTM-Sup.png" />
     <Content Include="70-30 Plots\Hourly\SupplyXWeatherXDemand\Hrly-FullMerged-CNN-Dem.png" />
@@ -1296,6 +1297,7 @@
     <Folder Include="Optimisation\New Datasets\" />
     <Folder Include="Optimisation\HTML Files\" />
     <Folder Include="Optimisation\KPI Results\" />
+    <Folder Include="Optimisation\Cleaning Optimisation\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

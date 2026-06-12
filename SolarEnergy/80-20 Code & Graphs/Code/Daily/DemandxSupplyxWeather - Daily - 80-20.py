@@ -87,7 +87,7 @@ sp_FullMerg.dropna(inplace=True)
 ##sp_WeatherxSup.to_csv(susave_loc, index=False)
 
 #------#
-"""
+
 tuner_subdirs = [
     'tuner_dir/blstm_tuning',
     'tuner_dir/lstm_tuning',
@@ -99,7 +99,7 @@ tuner_subdirs = [
 for subdir in tuner_subdirs:
     if os.path.exists(subdir):
         shutil.rmtree(subdir)
-"""
+
 def create_sequences_with_time(data, targets, seq_length):
     X, y = [], []
     for i in range(len(data) - seq_length):
@@ -118,6 +118,34 @@ def create_sequence_with_time(df, feature_columns, target_columns, window_size=2
         X.append(df[feature_columns].iloc[i:i+window_size].values.flatten())
         y.append(df[target_columns].iloc[i+window_size].values)
     return np.array(X), np.array(y)
+
+def split_train_val_test(X_seq, y_seq):
+    n_total = len(X_seq)
+    if n_total < 3:
+        raise ValueError("Not enough sequence samples to create train, validation, and test splits.")
+
+    n_test = max(1, int(n_total * 0.2))
+    if n_test >= n_total:
+        n_test = n_total - 1
+
+    n_train_val = n_total - n_test
+    n_val = max(1, int(n_train_val * 0.2))
+    if n_val >= n_train_val:
+        n_val = n_train_val - 1
+
+    X_train_val = X_seq[:n_train_val]
+    y_train_val = y_seq[:n_train_val]
+
+    X_test = X_seq[n_train_val:]
+    y_test = y_seq[n_train_val:]
+
+    X_train = X_train_val[:-n_val]
+    y_train = y_train_val[:-n_val]
+
+    X_val = X_train_val[-n_val:]
+    y_val = y_train_val[-n_val:]
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
 def decisionTreeModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
@@ -607,168 +635,7 @@ def xgbModelDS(mergedDs: pd.DataFrame, plots:boolean):
     return results
 
 
-def gbModelDS(mergedDs: pd.DataFrame, plots:boolean):
-    mergedDs = mergedDs.copy()
-    """
-    GradientBoosting for Merged Dataset -
-    MSE: 5705.4124
-    MAE: 62.9679
-    RMSE: 75.5342
-    R2: -0.2487
-    --
-    With hyper params -  {'estimator__learning_rate': 0.1,
-    'estimator__max_depth': 3, 'estimator__max_features': 'sqrt',
-    'estimator__min_samples_leaf': 2, 'estimator__min_samples_split': 10,
-    'estimator__n_estimators': 100} - Best params
-    MSE: 4380.3926
-    MAE: 56.7835
-    RMSE: 66.1845
-    R2: 0.1103
-    --
-    """
 
-    mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
-    mergedDs["day"] = mergedDs["TimeStamp"].dt.day
-    mergedDs["month"] = mergedDs["TimeStamp"].dt.month
-
-    feature_cols = [
-        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
-        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
-        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
-        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
-    ]
-    
-    scaler_X = MinMaxScaler()
-    scaler_y = MinMaxScaler()
-    target_cols = ['Demand_MW', 'Supply_MW']
-    X = scaler_X.fit_transform(mergedDs[feature_cols])
-    y = scaler_y.fit_transform(mergedDs[target_cols])
-
-    seq_length = 24
-    X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-
-    
-    param_grid = {
-        'estimator__n_estimators': [100],
-        'estimator__max_depth': [3],
-        'estimator__learning_rate': [0.1],
-        'estimator__min_samples_split': [10],
-        'estimator__min_samples_leaf': [2],
-        'estimator__max_features': ['sqrt']
-    }
-    """
-    param_grid = {
-        'estimator__n_estimators': [50, 100, 200],
-        'estimator__max_depth': [3, 5, 10],
-        'estimator__learning_rate': [0.01, 0.1, 0.2],
-        'estimator__min_samples_split': [2, 5, 10],
-        'estimator__min_samples_leaf': [1, 2, 4],
-        'estimator__max_features': ['auto', 'sqrt', 'log2', None]
-    }
-    """
-    base_model = MultiOutputRegressor(GradientBoostingRegressor(random_state=42))
-    grid_search = GridSearchCV(base_model, param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1)
-    grid_search.fit(X_train, y_train)
-    print("Best parameters:\n", grid_search.best_params_)
-
-    y_pred = grid_search.predict(X_test)
-    """
-    base_model = MultiOutputRegressor(GradientBoostingRegressor(n_estimators=100, random_state=42))
-    model = MultiOutputRegressor(base_model)
-    base_model.fit(X_train, y_train)
-    y_pred = base_model.predict(X_test)
-    """
-    y_demand_pred = scaler_y.inverse_transform(y_pred)
-    y_demand_true = scaler_y.inverse_transform(y_test)
-
-    mse = mean_squared_error(y_demand_true, y_demand_pred)
-    mae = mean_absolute_error(y_demand_true, y_demand_pred)
-    rmse = np.sqrt(mse)
-    r2 = r2_score(y_demand_true, y_demand_pred)
-    modelName = "Gradient Boost"
-    results = [mse, mae, rmse, r2,modelName]
-    best_tree_model = grid_search.best_estimator_
-
-    # Initialize a dictionary to store SHAP values for each output
-    shap_values_dict = {}
-
-    # Loop through each output's regressor
-    for i, estimator in enumerate(best_tree_model.estimators_):
-        print(f"\nComputing SHAP values for output {i + 1}...")
-        explainer = shap.TreeExplainer(estimator)
-        shap_values = explainer.shap_values(X_test)
-        shap_values_dict[f"Output_{i + 1}"] = shap_values
-
-        # Compute mean absolute SHAP values for global feature importance
-        mean_shap_values = np.abs(shap_values).mean(axis=0)
-
-        # Print feature importance for this output
-        print(f"\nFeature Importance (SHAP Values) for Output {i + 1}:")
-        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
-            print(f"{feature:<30} {importance:.4f}")
-
-    # Prepare SHAP values for return
-    shap_importance = {
-        f"Output_{i + 1}": sorted(
-            zip(feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0)),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        for i in range(len(best_tree_model.estimators_))
-    }
-    expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-    ]
-
-    # Debugging prints
-    print(f"Number of expanded feature columns: {len(expanded_feature_cols)}")
-    print(f"Shape of X_test: {X_test.shape}")
-    print(f"Shape of shap_values: {shap_values.shape}")
-
-    # Ensure compatibility
-    assert len(expanded_feature_cols) == X_test.shape[1], "Mismatch between expanded_feature_cols and X_test!"
-
-    # Plot SHAP summary
-    shap.summary_plot(shap_values, X_test, feature_names=expanded_feature_cols)
-    #----#
-    print('\n', "Merged GB Model Results:")
-    print("MSE: {:.4f}".format(mse))
-    print("MAE: {:.4f}".format(mae))
-    print("RMSE: {:.4f}".format(rmse))
-    print("R2: {:.4f}".format(r2))
-    if plots == True:
-
-        #-Demand Plot-#
-        plt.figure(figsize=(10, 5))
-        plt.plot(y_demand_true[:, 0], label='Actual Demand')
-        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-        plt.title(f'Gradient Boosting Model: Actual vs Predicted Demand: Daily')
-        plt.xlabel('Time')
-        plt.ylabel('MW')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-        #-Supply Plot-#
-        plt.figure(figsize=(10, 5))
-        plt.plot(y_demand_true[:, 1], label='Actual Supply')
-        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-        plt.title(f'Gradient Boosting Model: Actual vs Predicted Supply: Daily')
-        plt.xlabel('Time')
-        plt.ylabel('MW')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-    
-    return results
 
 
 def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
@@ -790,8 +657,6 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
     R2: 0.4663
     """
 
-    #----#
-    ##Basic transformation for the base dataset
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
@@ -802,7 +667,7 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -811,46 +676,58 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
     seq_length = 24
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-    #
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
-    
+
     tuner = Hyperband(
-    lambda hp: (
-        lambda model: (
-            model.compile(
-                optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
-                loss='mse'
-            ),
-            model
-        )[1]
-    )(Sequential([
-        Bidirectional(LSTM(
-            units=hp.Int('units1', 32, 128, step=32),
-            return_sequences=True,
-            input_shape=(seq_length, num_features)
-        )),
-        Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
-        Bidirectional(LSTM(
-            units=hp.Int('units2', 32, 128, step=32),
-            return_sequences=False
-        )),
-        Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
-        Dense(2)
-    ])),
-    objective='val_loss',
-    max_epochs=20,
-    factor=3,
-    directory='tuner_dir',
-    project_name='blstm_tuning'
-)
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+        lambda hp: (
+            lambda model: (
+                model.compile(
+                    optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
+                    loss='mse'
+                ),
+                model
+            )[1]
+        )(Sequential([
+            Bidirectional(LSTM(
+                units=hp.Int('units1', 32, 128, step=32),
+                return_sequences=True,
+                input_shape=(seq_length, num_features)
+            )),
+            Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
+            Bidirectional(LSTM(
+                units=hp.Int('units2', 32, 128, step=32),
+                return_sequences=False
+            )),
+            Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
+            Dense(2)
+        ])),
+        objective='val_loss',
+        max_epochs=20,
+        factor=3,
+        directory='tuner_dir',
+        project_name='blstm_tuning'
+    )
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for BLSTM:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
@@ -864,34 +741,18 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
     explainer = shap.GradientExplainer(best_model, X_train)
     shap_values = explainer.shap_values(X_test)
     expanded_feature_cols = [
-       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-   ]
-    # Loop through each output (e.g., Demand and Supply)
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
     for i, shap_value in enumerate(shap_values):
         print(f"\nComputing SHAP values for output {i + 1}...")
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        # Store SHAP values in the dictionary
         shap_values_dict[f"Output_{i + 1}"] = shap_value
-    """
-    print("feature_cols:", feature_cols)
-    print("mean_shap_values:", mean_shap_values)
-    print("Length of feature_cols:", len(feature_cols))
-    print("Length of mean_shap_values:", len(mean_shap_values))
-    
-    # If mean_shap_values is a NumPy array, ensure it's flattened
-    if isinstance(mean_shap_values, np.ndarray):
-        print("Shape of mean_shap_values:", mean_shap_values.shape)
-    """
-    # Prepare SHAP values for return
-    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
 
-    # Adjust shap_values to match the flattened structure
-    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+    shap_values_demand = shap_values_flat[:, :, 0]
 
-    # Select the SHAP values for the first output (e.g., Demand)
-    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-    # Prepare SHAP importance with adjusted SHAP values
     shap_importance = {
         f"Output_{i + 1}": sorted(
             zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -899,18 +760,17 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
             reverse=True
         )
         for i in range(len(shap_values_dict))
-}
+    }
 
     print("Shape of X_test_flat:", X_test_flat.shape)
     print("Shape of shap_values_flat:", shap_values_flat.shape)
     print("Shape of shap_values_demand:", shap_values_demand.shape)
 
-    
     assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
     assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-    # Plot SHAP summary for the first output
     shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
+
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -918,15 +778,12 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
     modelName = "BLSTM"
     results = [mse, mae, rmse, r2,modelName]
 
-    #----#
     print('\n', "Merged BLSTM Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
-        #-Demand Plot-#
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
@@ -936,7 +793,7 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-        #-Supply Plot-#
+
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
@@ -946,9 +803,8 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
-    return results
 
+    return results
 
 def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
@@ -978,7 +834,7 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -987,15 +843,12 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
 
     seq_length = 24
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-
 
     tuner = Hyperband(
         lambda hp: (
@@ -1026,33 +879,28 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
         directory='tuner_dir',
         project_name='lstm_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for LSTM:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
-
     y_pred = best_model.predict(X_test)
-    
-    """
-    ## Base Model Implementation
-    model = Sequential([
-        LSTM(64, return_sequences=True, input_shape=(seq_length, X_train.shape[2])),
-        Dropout(0.2),
-        LSTM(100, return_sequences=False),
-        Dense(64),
-        Dense(2)
-    ])
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test),
-              callbacks=[early_stopping])
-    
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
     shap_values_dict = {}
@@ -1060,34 +908,18 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
     explainer = shap.GradientExplainer(best_model, X_train)
     shap_values = explainer.shap_values(X_test)
     expanded_feature_cols = [
-       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-   ]
-    # Loop through each output (e.g., Demand and Supply)
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
     for i, shap_value in enumerate(shap_values):
         print(f"\nComputing SHAP values for output {i + 1}...")
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        # Store SHAP values in the dictionary
         shap_values_dict[f"Output_{i + 1}"] = shap_value
-    """
-    print("feature_cols:", feature_cols)
-    print("mean_shap_values:", mean_shap_values)
-    print("Length of feature_cols:", len(feature_cols))
-    print("Length of mean_shap_values:", len(mean_shap_values))
-    
-    # If mean_shap_values is a NumPy array, ensure it's flattened
-    if isinstance(mean_shap_values, np.ndarray):
-        print("Shape of mean_shap_values:", mean_shap_values.shape)
-    """
-    # Prepare SHAP values for return
-    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
 
-    # Adjust shap_values to match the flattened structure
-    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+    shap_values_demand = shap_values_flat[:, :, 0]
 
-    # Select the SHAP values for the first output (e.g., Demand)
-    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-    # Prepare SHAP importance with adjusted SHAP values
     shap_importance = {
         f"Output_{i + 1}": sorted(
             zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1095,18 +927,17 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
             reverse=True
         )
         for i in range(len(shap_values_dict))
-}
+    }
 
     print("Shape of X_test_flat:", X_test_flat.shape)
     print("Shape of shap_values_flat:", shap_values_flat.shape)
     print("Shape of shap_values_demand:", shap_values_demand.shape)
 
-    
     assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
     assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-    # Plot SHAP summary for the first output
     shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
+
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1114,15 +945,12 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
     modelName = "LSTM"
     results = [mse, mae, rmse, r2,modelName]
 
-    #----#
     print('\n', "Merged LSTM Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
-        #-Demand Plot-#
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
@@ -1132,7 +960,7 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-        #-Supply Plot-#
+
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
@@ -1142,14 +970,13 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
+
     return results
 
 
 def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
     """
-    
     GRU for Merged Dataset -
     MSE: 2876.9410
     MAE: 41.2654
@@ -1165,8 +992,6 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     --
     """
 
-    #----#
-    ##Basic transformation for the base dataset
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
@@ -1177,7 +1002,7 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -1187,14 +1012,12 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     seq_length = 24
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
 
-        
     tuner = Hyperband(
         lambda hp: (
             lambda model: (
@@ -1224,32 +1047,28 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
         directory='tuner_dir',
         project_name='gru_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for GRU:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
-
     y_pred = best_model.predict(X_test)
-    """
-    ## Base Model Implementation
-    model = Sequential([
-        GRU(64, return_sequences=True, input_shape=(seq_length, X_train.shape[2])),
-        Dropout(0.2),
-        GRU(100, return_sequences=False),
-        Dense(64, activation='relu'),
-        Dense(2)
-    ])
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test),
-              callbacks=[early_stopping])
-
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
     shap_values_dict = {}
@@ -1257,34 +1076,18 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     explainer = shap.GradientExplainer(best_model, X_train)
     shap_values = explainer.shap_values(X_test)
     expanded_feature_cols = [
-       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-   ]
-    # Loop through each output (e.g., Demand and Supply)
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
     for i, shap_value in enumerate(shap_values):
         print(f"\nComputing SHAP values for output {i + 1}...")
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        # Store SHAP values in the dictionary
         shap_values_dict[f"Output_{i + 1}"] = shap_value
-    """
-    print("feature_cols:", feature_cols)
-    print("mean_shap_values:", mean_shap_values)
-    print("Length of feature_cols:", len(feature_cols))
-    print("Length of mean_shap_values:", len(mean_shap_values))
-    
-    # If mean_shap_values is a NumPy array, ensure it's flattened
-    if isinstance(mean_shap_values, np.ndarray):
-        print("Shape of mean_shap_values:", mean_shap_values.shape)
-    """
-    # Prepare SHAP values for return
-    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
 
-    # Adjust shap_values to match the flattened structure
-    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+    shap_values_demand = shap_values_flat[:, :, 0]
 
-    # Select the SHAP values for the first output (e.g., Demand)
-    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-    # Prepare SHAP importance with adjusted SHAP values
     shap_importance = {
         f"Output_{i + 1}": sorted(
             zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1292,18 +1095,17 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
             reverse=True
         )
         for i in range(len(shap_values_dict))
-}
+    }
 
     print("Shape of X_test_flat:", X_test_flat.shape)
     print("Shape of shap_values_flat:", shap_values_flat.shape)
     print("Shape of shap_values_demand:", shap_values_demand.shape)
 
-    
     assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
     assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-    # Plot SHAP summary for the first output
     shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
+
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1311,16 +1113,13 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
     modelName = "GRU"
     results = [mse, mae, rmse, r2,modelName]
 
-    #----#
     print('\n', "Merged GRU Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-   
-    if plots == True:
 
-        #-Demand Plot-#
+    if plots == True:
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
@@ -1330,7 +1129,7 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-        #-Supply Plot-#
+
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
@@ -1340,7 +1139,7 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
+
     return results
 
 
@@ -1552,7 +1351,6 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
     ---
     """
 
-    # All code below is now at the same indentation as the inner function
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
@@ -1563,7 +1361,7 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -1573,18 +1371,13 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
     seq_length = 24
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     num_features = len(feature_cols)
     X_train = X_train.reshape((X_train.shape[0], seq_length * num_features))
+    X_val = X_val.reshape((X_val.shape[0], seq_length * num_features))
     X_test = X_test.reshape((X_test.shape[0], seq_length * num_features))
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
 
-    
-  
     tuner = Hyperband(
         lambda hp: (
             lambda model: (
@@ -1607,30 +1400,28 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
         directory='tuner_dir',
         project_name='mlp_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for MLP:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
     y_pred = best_model.predict(X_test)
 
-
-    """
-    ## Base Implementation 
-    model = Sequential([
-        Dense(128, activation='relu', input_dim=X_train.shape[1]),
-        Dropout(0.2),
-        Dense(64, activation='relu'),
-        Dropout(0.2),
-        Dense(32, activation='relu'),
-        Dense(2)
-    ])
-
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test))
-
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
     shap_values_dict = {}
@@ -1638,34 +1429,18 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
     explainer = shap.GradientExplainer(best_model, X_train)
     shap_values = explainer.shap_values(X_test)
     expanded_feature_cols = [
-       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-   ]
-    # Loop through each output (e.g., Demand and Supply)
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
     for i, shap_value in enumerate(shap_values):
         print(f"\nComputing SHAP values for output {i + 1}...")
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        # Store SHAP values in the dictionary
         shap_values_dict[f"Output_{i + 1}"] = shap_value
-    """
-    print("feature_cols:", feature_cols)
-    print("mean_shap_values:", mean_shap_values)
-    print("Length of feature_cols:", len(feature_cols))
-    print("Length of mean_shap_values:", len(mean_shap_values))
-    
-    # If mean_shap_values is a NumPy array, ensure it's flattened
-    if isinstance(mean_shap_values, np.ndarray):
-        print("Shape of mean_shap_values:", mean_shap_values.shape)
-    """
-    # Prepare SHAP values for return
-    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
 
-    # Adjust shap_values to match the flattened structure
-    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+    shap_values_demand = shap_values_flat[:, :, 0]
 
-    # Select the SHAP values for the first output (e.g., Demand)
-    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-    # Prepare SHAP importance with adjusted SHAP values
     shap_importance = {
         f"Output_{i + 1}": sorted(
             zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1673,18 +1448,17 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
             reverse=True
         )
         for i in range(len(shap_values_dict))
-}
+    }
 
     print("Shape of X_test_flat:", X_test_flat.shape)
     print("Shape of shap_values_flat:", shap_values_flat.shape)
     print("Shape of shap_values_demand:", shap_values_demand.shape)
 
-    
     assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
     assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-    # Plot SHAP summary for the first output
     shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
+
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1698,7 +1472,6 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
@@ -1708,6 +1481,7 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
+
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
@@ -1717,13 +1491,12 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
+
     return results
 
 
 def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
     mergedDs = mergedDs.copy()
-
 
     """
     CNN for Merged Dataset -
@@ -1749,7 +1522,7 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -1759,15 +1532,13 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
     seq_length = 24
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
-    
+
     tuner = Hyperband(
         lambda hp: (
             lambda model: (
@@ -1802,34 +1573,28 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
         directory='tuner_dir',
         project_name='cnn_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for CNN:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
-
     y_pred = best_model.predict(X_test)
 
-
-    """
-    ## Base Model Implementation 
-    model = Sequential([
-        Conv1D(64, kernel_size=3, activation='relu', input_shape=(seq_length, X_train.shape[2])),
-        MaxPooling1D(pool_size=2),
-        Dropout(0.2),
-        Conv1D(128, kernel_size=3, activation='relu'),
-        Dropout(0.2),
-        Flatten(),
-        Dense(32, activation='relu'),
-        Dense(2)
-    ])
-
-    model.compile(optimizer='adam', loss='mse')
-
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test))
-
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
     shap_values_dict = {}
@@ -1837,34 +1602,18 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
     explainer = shap.GradientExplainer(best_model, X_train)
     shap_values = explainer.shap_values(X_test)
     expanded_feature_cols = [
-       f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-   ]
-    # Loop through each output (e.g., Demand and Supply)
+        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+    ]
+
     for i, shap_value in enumerate(shap_values):
         print(f"\nComputing SHAP values for output {i + 1}...")
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        # Store SHAP values in the dictionary
         shap_values_dict[f"Output_{i + 1}"] = shap_value
-    """
-    print("feature_cols:", feature_cols)
-    print("mean_shap_values:", mean_shap_values)
-    print("Length of feature_cols:", len(feature_cols))
-    print("Length of mean_shap_values:", len(mean_shap_values))
-    
-    # If mean_shap_values is a NumPy array, ensure it's flattened
-    if isinstance(mean_shap_values, np.ndarray):
-        print("Shape of mean_shap_values:", mean_shap_values.shape)
-    """
-    # Prepare SHAP values for return
-    X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
 
-    # Adjust shap_values to match the flattened structure
-    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+    shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+    shap_values_demand = shap_values_flat[:, :, 0]
 
-    # Select the SHAP values for the first output (e.g., Demand)
-    shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-    # Prepare SHAP importance with adjusted SHAP values
     shap_importance = {
         f"Output_{i + 1}": sorted(
             zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1872,18 +1621,17 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
             reverse=True
         )
         for i in range(len(shap_values_dict))
-}
+    }
 
     print("Shape of X_test_flat:", X_test_flat.shape)
     print("Shape of shap_values_flat:", shap_values_flat.shape)
     print("Shape of shap_values_demand:", shap_values_demand.shape)
 
-    
     assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
     assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
-    # Plot SHAP summary for the first output
     shap.summary_plot(shap_values_demand, X_test_flat, feature_names=expanded_feature_cols)
+
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1891,15 +1639,12 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
     modelName = "CNN"
     results = [mse, mae, rmse, r2,modelName]
 
-    #---#
     print('\n', "Demand CNN Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
-        #-Demand Plot-#
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
@@ -1909,7 +1654,7 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-        #-Supply Plot-#
+
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
@@ -1919,7 +1664,7 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:boolean):
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
+
     return results
 
 
@@ -2120,7 +1865,7 @@ def NSGA2_CNN_ModelDS(
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     target_cols = ['Demand_MW', 'Supply_MW']
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     X = scaler_X.fit_transform(mergedDs[feature_cols])
@@ -2129,9 +1874,7 @@ def NSGA2_CNN_ModelDS(
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
     num_features = len(feature_cols)
     X_seq = X_seq.reshape((-1, seq_length, num_features))
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     scaler_demand = MinMaxScaler()
     scaler_supply = MinMaxScaler()
@@ -2158,14 +1901,12 @@ def NSGA2_CNN_ModelDS(
         y_supply_pred = scaler_supply.inverse_transform(y_pred[:, 1].reshape(-1, 1))
         y_demand_true = scaler_demand.inverse_transform(y_true[:, 0].reshape(-1, 1))
         y_supply_true = scaler_supply.inverse_transform(y_true[:, 1].reshape(-1, 1))
-        # Ensure all are real
         y_demand_pred = np.real(y_demand_pred)
         y_supply_pred = np.real(y_supply_pred)
         y_demand_true = np.real(y_demand_true)
         y_supply_true = np.real(y_supply_true)
         mse_demand = mean_squared_error(y_demand_true, y_demand_pred)
         mse_supply = mean_squared_error(y_supply_true, y_supply_pred)
-        # Force to real float (in case metrics return complex)
         mse_demand = float(np.real(mse_demand))
         mse_supply = float(np.real(mse_supply))
         return mse_demand, mse_supply
@@ -2193,13 +1934,12 @@ def NSGA2_CNN_ModelDS(
                 X_train, y_train,
                 epochs=epochs,
                 batch_size=batch_size,
-                validation_data=(X_test, y_test),
+                validation_data=(X_val, y_val),
                 callbacks=[early_stopping],
                 verbose=0
             )
-            y_pred = model.predict(X_test, verbose=0)
-            mse_demand, mse_supply = compute_full_metrics(y_test, y_pred)
-            # Ensure fitness values are real floats
+            y_pred = model.predict(X_val, verbose=0)
+            mse_demand, mse_supply = compute_full_metrics(y_val, y_pred)
             mse_demand = float(np.real(mse_demand))
             mse_supply = float(np.real(mse_supply))
             return mse_demand, mse_supply
@@ -2261,7 +2001,7 @@ def NSGA2_CNN_ModelDS(
         X_train, y_train,
         epochs=epochs,
         batch_size=batch_size,
-        validation_data=(X_test, y_test),
+        validation_data=(X_val, y_val),
         callbacks=[early_stopping],
         verbose=0
     )
@@ -2272,14 +2012,11 @@ def NSGA2_CNN_ModelDS(
     y_demand_true = scaler_demand.inverse_transform(y_test[:, 0].reshape(-1, 1))
     y_supply_true = scaler_supply.inverse_transform(y_test[:, 1].reshape(-1, 1))
 
-    # Ensure all are real
     y_demand_pred = np.real(y_demand_pred)
     y_supply_pred = np.real(y_supply_pred)
     y_demand_true = np.real(y_demand_true)
     y_supply_true = np.real(y_supply_true)
 
-    
-    
     all_true = np.concatenate((y_demand_true, y_supply_true), axis=0)
     all_pred = np.concatenate((y_demand_pred, y_supply_pred), axis=0)
     all_true = np.real(all_true)
@@ -2299,7 +2036,6 @@ def NSGA2_CNN_ModelDS(
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual Demand')
         plt.plot(y_demand_pred, label='Predicted Demand')
@@ -2319,9 +2055,8 @@ def NSGA2_CNN_ModelDS(
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
-    return results    
 
+    return results
 def NSGA3_CNN_ModelDS(
     mergedDs: pd.DataFrame,
     plots: boolean,
@@ -2346,7 +2081,7 @@ def NSGA3_CNN_ModelDS(
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
     target_cols = ['Demand_MW', 'Supply_MW']
-    
+
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     X = scaler_X.fit_transform(mergedDs[feature_cols])
@@ -2355,9 +2090,7 @@ def NSGA3_CNN_ModelDS(
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
     num_features = len(feature_cols)
     X_seq = X_seq.reshape((-1, seq_length, num_features))
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     scaler_demand = MinMaxScaler()
     scaler_supply = MinMaxScaler()
@@ -2386,14 +2119,12 @@ def NSGA3_CNN_ModelDS(
         y_supply_pred = scaler_supply.inverse_transform(y_pred[:, 1].reshape(-1, 1))
         y_demand_true = scaler_demand.inverse_transform(y_true[:, 0].reshape(-1, 1))
         y_supply_true = scaler_supply.inverse_transform(y_true[:, 1].reshape(-1, 1))
-        # Ensure all are real
         y_demand_pred = np.real(y_demand_pred)
         y_supply_pred = np.real(y_supply_pred)
         y_demand_true = np.real(y_demand_true)
         y_supply_true = np.real(y_supply_true)
         mse_demand = mean_squared_error(y_demand_true, y_demand_pred)
         mse_supply = mean_squared_error(y_supply_true, y_supply_pred)
-        # Force to real float (in case metrics return complex)
         mse_demand = float(np.real(mse_demand))
         mse_supply = float(np.real(mse_supply))
         return mse_demand, mse_supply
@@ -2421,13 +2152,12 @@ def NSGA3_CNN_ModelDS(
                 X_train, y_train,
                 epochs=epochs,
                 batch_size=batch_size,
-                validation_data=(X_test, y_test),
+                validation_data=(X_val, y_val),
                 callbacks=[early_stopping],
                 verbose=0
             )
-            y_pred = model.predict(X_test, verbose=0)
-            mse_demand, mse_supply = compute_full_metrics(y_test, y_pred)
-            # Ensure fitness values are real floats
+            y_pred = model.predict(X_val, verbose=0)
+            mse_demand, mse_supply = compute_full_metrics(y_val, y_pred)
             mse_demand = float(np.real(mse_demand))
             mse_supply = float(np.real(mse_supply))
             return mse_demand, mse_supply
@@ -2489,7 +2219,7 @@ def NSGA3_CNN_ModelDS(
         X_train, y_train,
         epochs=epochs,
         batch_size=batch_size,
-        validation_data=(X_test, y_test),
+        validation_data=(X_val, y_val),
         callbacks=[early_stopping],
         verbose=0
     )
@@ -2500,12 +2230,11 @@ def NSGA3_CNN_ModelDS(
     y_demand_true = scaler_demand.inverse_transform(y_test[:, 0].reshape(-1, 1))
     y_supply_true = scaler_supply.inverse_transform(y_test[:, 1].reshape(-1, 1))
 
-    # Ensure all are real
     y_demand_pred = np.real(y_demand_pred)
     y_supply_pred = np.real(y_supply_pred)
     y_demand_true = np.real(y_demand_true)
     y_supply_true = np.real(y_supply_true)
-         
+
     all_true = np.concatenate((y_demand_true, y_supply_true), axis=0)
     all_pred = np.concatenate((y_demand_pred, y_supply_pred), axis=0)
     all_true = np.real(all_true)
@@ -2525,7 +2254,6 @@ def NSGA3_CNN_ModelDS(
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
     if plots == True:
-
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true, label='Actual Demand')
         plt.plot(y_demand_pred, label='Predicted Demand')
@@ -2545,9 +2273,8 @@ def NSGA3_CNN_ModelDS(
         plt.legend()
         plt.tight_layout()
         plt.show()
-    
-    return results
 
+    return results
 
 
 def BetterModelSelectionMethod(ModelArray: list):
@@ -2602,28 +2329,22 @@ def BetterModelSelectionMethod(ModelArray: list):
 DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False))
 randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False))
 xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False))
-gb = ensure_real_result(gbModelDS(sp_FullMerg,False))
 gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False))
-
 blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False))
-
 lstm  = ensure_real_result(LSTMModelDS(sp_FullMerg,False))
 gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False))
-
 svr  = ensure_real_result(SVRModelDS(sp_FullMerg,False))
-
 mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False))
 cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False))
 nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False))
 nsga3cnn  = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False))
-modelresults = [DecTree, randForest, xgb,gb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
+modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, svr, mlp, cnn, nsga2cnn, nsga3cnn]
 
 
 """
 DecTree = decisionTreeModelDS(sp_FullMerg)
 randForest = randomForestModelDS(sp_FullMerg)
 xgb = xgbModelDS(sp_FullMerg)
-gb = gbModelDS(sp_FullMerg)
 gbdt = GBDTModelDS(sp_FullMerg)
 blstm = biDirectionalLSTMDS(sp_FullMerg)
 lstm = LSTMModelDS(sp_FullMerg)

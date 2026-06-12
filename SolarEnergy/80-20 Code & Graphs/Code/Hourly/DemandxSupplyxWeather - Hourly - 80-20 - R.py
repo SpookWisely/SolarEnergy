@@ -648,6 +648,35 @@ def xgbModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
 
     return results
 
+def split_train_val_test(X_seq, y_seq):
+    n_total = len(X_seq)
+    if n_total < 3:
+        raise ValueError("Not enough sequence samples to create train, validation, and test splits.")
+
+    n_test = max(1, int(n_total * 0.2))
+    if n_test >= n_total:
+        n_test = n_total - 1
+
+    n_train_val = n_total - n_test
+    n_val = max(1, int(n_train_val * 0.2))
+    if n_val >= n_train_val:
+        n_val = n_train_val - 1
+
+    X_train_val = X_seq[:n_train_val]
+    y_train_val = y_seq[:n_train_val]
+
+    X_test = X_seq[n_train_val:]
+    y_test = y_seq[n_train_val:]
+
+    X_train = X_train_val[:-n_val]
+    y_train = y_train_val[:-n_val]
+
+    X_val = X_train_val[-n_val:]
+    y_val = y_train_val[-n_val:]
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
 def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs = mergedDs.copy()
 
@@ -672,46 +701,57 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-    #
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
     
     tuner = Hyperband(
-    lambda hp: (
-        lambda model: (
-            model.compile(
-                optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
-                loss='mse'
-            ),
-            model
-        )[1]
-    )(Sequential([
-        Bidirectional(LSTM(
-            units=hp.Int('units1', 32, 128, step=32),
-            return_sequences=True,
-            input_shape=(seq_length, num_features)
-        )),
-        Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
-        Bidirectional(LSTM(
-            units=hp.Int('units2', 32, 128, step=32),
-            return_sequences=False
-        )),
-        Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
-        Dense(2)
-    ])),
-    objective='val_loss',
-    max_epochs=20,
-    factor=3,
-    directory='tuner_dir',
-    project_name='blstm_tuning'
-)
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+        lambda hp: (
+            lambda model: (
+                model.compile(
+                    optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
+                    loss='mse'
+                ),
+                model
+            )[1]
+        )(Sequential([
+            Bidirectional(LSTM(
+                units=hp.Int('units1', 32, 128, step=32),
+                return_sequences=True,
+                input_shape=(seq_length, num_features)
+            )),
+            Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
+            Bidirectional(LSTM(
+                units=hp.Int('units2', 32, 128, step=32),
+                return_sequences=False
+            )),
+            Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
+            Dense(2)
+        ])),
+        objective='val_loss',
+        max_epochs=20,
+        factor=3,
+        directory='tuner_dir',
+        project_name='blstm_tuning'
+    )
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for BLSTM:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
@@ -721,7 +761,6 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     y_demand_true = scaler_y.inverse_transform(y_test)
     y_demand_pred = scaler_y.inverse_transform(y_pred)
 
-   
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -762,20 +801,19 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         explainer = shap.GradientExplainer(best_model, X_train)
         shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-    ]
-
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+        ]
 
         # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
         # Identify top 3 features
         top_features = sorted(
-                zip(feature_cols, mean_shap_values),
-                key=lambda x: x[1],
-                reverse=True
-            )[:3]
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
         print("\nTop Features:")
         for feature, importance in top_features:
             print(f"{feature:<30} {importance:.4f}")
@@ -783,7 +821,6 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -791,27 +828,19 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
+        }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
 
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -819,42 +848,32 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
-        """
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        """
-        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"    
+        }
+
+        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
-        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-        for feature in feature_cols
-    }   
-        
-        # Loop through top features
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
+        }
+
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -862,12 +881,11 @@ def biDirectionalLSTMDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -885,17 +903,6 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
 
     """
     LSTM for Merged Dataset -
-    MSE: 2843.6818
-    MAE: 42.5091
-    RMSE: 53.3262
-    R2: 0.3143
-
-    --
-    With Hyper Params - {'units1': 32, 'dropout1': 0.5, 'units2': 128, 'dense_units': 32, 'learning_rate': 0.0001, 'tuner/epochs': 20, 'tuner/initial_epoch': 7, 'tuner/bracket': 2, 'tuner/round': 2, 'tuner/trial_id': '0013'} - Best params
-    MSE: 2679.7903
-    MAE: 37.0395
-    RMSE: 51.7667
-    R2: 0.3878
     """
 
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
@@ -918,15 +925,12 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-
 
     tuner = Hyperband(
         lambda hp: (
@@ -957,33 +961,27 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         directory='tuner_dir',
         project_name='lstm_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for LSTM:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
-
     y_pred = best_model.predict(X_test)
-    
-    """
-    ## Base Model Implementation
-    model = Sequential([
-        LSTM(64, return_sequences=True, input_shape=(seq_length, X_train.shape[2])),
-        Dropout(0.2),
-        LSTM(100, return_sequences=False),
-        Dense(64),
-        Dense(2)
-    ])
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test),
-              callbacks=[early_stopping])
-    
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
   
@@ -1027,25 +1025,20 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         explainer = shap.GradientExplainer(best_model, X_train)
         shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-    ]
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+        ]
 
-
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
-        # Identify top 3 features
         top_features = sorted(
-                zip(feature_cols, mean_shap_values),
-                key=lambda x: x[1],
-                reverse=True
-            )[:3]
-        # Print feature importance for this output
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1053,26 +1046,19 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
+        }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
 
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1080,44 +1066,32 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
-        """
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        """
-    
+        }
+
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
-        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-        for feature in feature_cols
-    }
-        # Loop through top features
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
+        }
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1125,12 +1099,11 @@ def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1168,14 +1141,13 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
 
-        
     tuner = Hyperband(
         lambda hp: (
             lambda model: (
@@ -1205,32 +1177,27 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         directory='tuner_dir',
         project_name='gru_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for GRU:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
-
     y_pred = best_model.predict(X_test)
-    """
-    ## Base Model Implementation
-    model = Sequential([
-        GRU(64, return_sequences=True, input_shape=(seq_length, X_train.shape[2])),
-        Dropout(0.2),
-        GRU(100, return_sequences=False),
-        Dense(64, activation='relu'),
-        Dense(2)
-    ])
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4), loss='mse')
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test),
-              callbacks=[early_stopping])
-
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
     shap_values_dict = {}
@@ -1276,25 +1243,20 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         explainer = shap.GradientExplainer(best_model, X_train)
         shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-    ]
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+        ]
 
-
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
-        # Identify top 3 features
         top_features = sorted(
-                zip(feature_cols, mean_shap_values),
-                key=lambda x: x[1],
-                reverse=True
-            )[:3]
-        # Print feature importance for this output
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1302,27 +1264,18 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-}
+        }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
-
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-        # Prepare SHAP importance with adjusted SHAP values
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1330,43 +1283,31 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
-        """
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        """
+        }
+
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-    
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
-        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-        for feature in feature_cols
-    }
-        # Loop through top features
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
+        }
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1374,12 +1315,11 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1391,62 +1331,25 @@ def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     return results
 
 
-def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
+
+def LSTMModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs = mergedDs.copy()
 
-
     """
-    Additonal Note the base results for SVR very bad to the point I thought they were broken I made a basic hyper param and cycled
-    through features to see if I could get better results but will need clarification if what I've done is correct in anyway. Though have
-    kept the base implementation for comparisons sake.
-    
-    SVR for Merged Dataset -
-    MSE: 1682.6278
-    MAE: 33.0451
-    RMSE: 41.0198
-    R2: -0.2768   
-    --
-    With Hyper Params -
-    {'estimator__C': 0.1, 'estimator__epsilon': 0.01, 
-    'estimator__gamma': 1, 'estimator__kernel': 'rbf'} - Best params
-    MSE: 1166.4916
-    MAE: 25.9020
-    RMSE: 34.1539
-    R2: 0.3737
-    --
-
+    LSTM for Merged Dataset -
     """
 
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
+
     feature_cols = [
         "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
         "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
         "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
         "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
     ]
-    """
-    Merged SVR Model Results: - With below sequence creation method
-    MSE: 3695.3976
-    MAE: 48.1701
-    RMSE: 60.7898
-    R2: -0.4673
-    """
-    target_cols = ['Demand_MW', 'Supply_MW']
-    seq_length = 1
-    X_seq, y_seq = create_sequence_with_time(mergedDs,feature_cols,target_cols, seq_length)
-    scaler_X = MinMaxScaler()
-    scaler_y = MinMaxScaler()
-    X = scaler_X.fit_transform(X_seq)
-    y = scaler_y.fit_transform(y_seq)
-
     
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2,shuffle=False
-    )
-    """
     scaler_X = MinMaxScaler()
     scaler_y = MinMaxScaler()
     target_cols = ['Demand_MW', 'Supply_MW']
@@ -1456,69 +1359,86 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
+    num_features = len(feature_cols)
+    X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
+    X_test = X_test.reshape((-1, seq_length, num_features))
+
+    tuner = Hyperband(
+        lambda hp: (
+            lambda model: (
+                model.compile(
+                    optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
+                    loss='mse'
+                ),
+                model
+            )[1]
+        )(Sequential([
+            LSTM(
+                units=hp.Int('units1', 32, 128, step=32),
+                return_sequences=True,
+                input_shape=(seq_length, num_features)
+            ),
+            Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
+            LSTM(
+                units=hp.Int('units2', 32, 128, step=32),
+                return_sequences=False
+            ),
+            Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
+            Dense(2)
+        ])),
+        objective='val_loss',
+        max_epochs=20,
+        factor=3,
+        directory='tuner_dir',
+        project_name='lstm_tuning'
     )
-    """
-    """
-    Merged SVR Model Results: - With Above Method of sequence creation
-    MSE: 3695.3976
-    MAE: 48.1701
-    RMSE: 60.7898
-    R2: -0.4673
 
-    """
-    param_grid = {
-        'estimator__C': [1],           # Regularization, similar to tree depth/complexity
-        #'estimator__gamma': [1],  # Kernel coefficient, like learning rate
-        'estimator__epsilon': [0.01], # Insensitivity, similar to min_samples_split
-        'estimator__kernel': ['rbf']                 # Keep kernel consistent
-    }
-    """
-    param_grid = {
-        'estimator__C': [0.1, 1, 10, 100],           # Regularization, similar to tree depth/complexity
-        'estimator__gamma': ['scale', 'auto', 0.01, 0.1, 1],  # Kernel coefficient, like learning rate
-        'estimator__epsilon': [0.01, 0.1, 0.5, 1.0], # Insensitivity, similar to min_samples_split
-        'estimator__kernel': ['rbf']                 # Keep kernel consistent
-    }
-    """
-    model = MultiOutputRegressor(SVR(kernel='rbf'))
-    ## model = MultiOutputRegressor(SVR())
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
 
-    grid = GridSearchCV(model, param_grid, cv=3, scoring='neg_mean_squared_error', n_jobs=-1)
-    grid.fit(X_train, y_train)
-    print("Best parameters:", grid.best_params_)
-    """
-    model = MultiOutputRegressor(SVR(kernel='rbf'))
-    model.fit(X_train, y_train)
-    """
-    y_pred = grid.predict(X_test)
-    
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+    best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+    print("Best hyperparameters found for LSTM:", best_hp.values)
+    best_model = tuner.get_best_models(num_models=1)[0]
+
+    y_pred = best_model.predict(X_test)
+
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
-    best_tree_model = grid.best_estimator_
-   
+  
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
     r2 = r2_score(y_demand_true, y_demand_pred)
-    modelName = "SVR"
+    modelName = "LSTM"
     results = [mse, mae, rmse, r2,modelName]
 
     #----#
-    print('\n', "Merged SVR Model Results:")
+    print('\n', "Merged LSTM Model Results:")
     print("MSE: {:.4f}".format(mse))
     print("MAE: {:.4f}".format(mae))
     print("RMSE: {:.4f}".format(rmse))
     print("R2: {:.4f}".format(r2))
-
     if plots == True:
 
         #-Demand Plot-#
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 0], label='Actual Demand')
         plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
-        plt.title(f'SVR Model: Actual vs Predicted Demand:  Hourly')
+        plt.title(f'LSTM Model: Actual vs Predicted Demand:  Hourly')
         plt.xlabel('Time')
         plt.ylabel('MW')
         plt.legend()
@@ -1528,7 +1448,7 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         plt.figure(figsize=(10, 5))
         plt.plot(y_demand_true[:, 1], label='Actual Supply')
         plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
-        plt.title(f'SVR Model: Actual vs Predicted Supply:  Hourly')
+        plt.title(f'LSTM Tree Model: Actual vs Predicted Supply:  Hourly')
         plt.xlabel('Time')
         plt.ylabel('MW')
         plt.legend()
@@ -1536,131 +1456,105 @@ def SVRModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         plt.show()
     if features == True:
         shap_values_dict = {}
-        # Use KernelExplainer for SVR
-        explainer = shap.KernelExplainer(grid.predict, X_train[:100])  # Use a subset of X_train for efficiency
-        shap_values = explainer.shap_values(X_test[:100])  # Compute SHAP values for a subset of X_test
-
+        explainer = shap.GradientExplainer(best_model, X_train)
+        shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
             f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
         ]
 
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = mean_shap_values.flatten()  # Ensure it's a flat array
-        # Identify top 3 features
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
+        mean_shap_values = mean_shap_values.flatten()
         top_features = sorted(
             zip(feature_cols, mean_shap_values),
             key=lambda x: x[1],
             reverse=True
         )[:3]
-
-        # Print feature importance for this output
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
-                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0).tolist()),
+                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
                 key=lambda x: x[1],
                 reverse=True
             )
             for i in range(len(shap_values_dict))
         }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test[:100].reshape(X_test[:10].shape[0], -1)  # Flatten the subset of X_test
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = np.array(shap_values).reshape(len(shap_values), -1)  # Flatten SHAP values
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
 
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :len(expanded_feature_cols)]  # Adjust to match feature columns
-
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :len(expanded_feature_cols)]  
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
-                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"]).mean(axis=0).tolist()),
+                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
                 key=lambda x: x[1],
                 reverse=True
             )
             for i in range(len(shap_values_dict))
         }
 
-        # Debugging prints
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
-        # Plot SHAP summary for the seccond output
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
             for feature in feature_cols
         }
-
-        # Loop through top features
+        
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
                         lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
                     )
-                else:
-                    print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
-            else:
-                print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-
-        for feature, _ in top_features:
-            if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
-                lagged_feature = feature_to_lagged_mapping[feature][0]
-                if lagged_feature in expanded_feature_cols:
-                    shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
             print(f"Feature {feature} not found in feature_to_lagged_mapping.")
-        return results
+        
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+        
+        return results  
     thresholds =  [112.21, 187.74, 237.23, 313.32, 397.67]
-    generate_classification_report(y_demand_true[:, 0], y_demand_pred[:, 0], thresholds,'SVR','Demand')
-    generate_classification_report(y_demand_true[:, 1], y_demand_pred[:, 1], thresholds,'SVR','Supply')
+    generate_classification_report(y_demand_true[:, 0], y_demand_pred[:, 0], thresholds,'LSTM','Demand')
+    generate_classification_report(y_demand_true[:, 1], y_demand_pred[:, 1], thresholds,'LSTM','Supply')
     return results
 
 
-def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
+def GRUModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs = mergedDs.copy()
 
-
-    # All code below is now at the same indentation as the inner function
+    #----#
+    ##Basic transformation for the base dataset
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
@@ -1681,17 +1575,397 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
+    num_features = len(feature_cols)
+    X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
+    X_test = X_test.reshape((-1, seq_length, num_features))
+
+    tuner = Hyperband(
+        lambda hp: (
+            lambda model: (
+                model.compile(
+                    optimizer=Adam(hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])),
+                    loss='mse'
+                ),
+                model
+            )[1]
+        )(Sequential([
+            GRU(
+                units=hp.Int('units1', 32, 128, step=32),
+                return_sequences=True,
+                input_shape=(seq_length, num_features)
+            ),
+            Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
+            GRU(
+                units=hp.Int('units2', 32, 128, step=32),
+                return_sequences=False
+            ),
+            Dense(hp.Int('dense_units', 32, 128, step=32), activation='relu'),
+            Dense(2)
+        ])),
+        objective='val_loss',
+        max_epochs=20,
+        factor=3,
+        directory='tuner_dir',
+        project_name='gru_tuning'
     )
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
+    best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+    print("Best hyperparameters found for GRU:", best_hp.values)
+    best_model = tuner.get_best_models(num_models=1)[0]
+
+    y_pred = best_model.predict(X_test)
+
+    y_demand_pred = scaler_y.inverse_transform(y_pred)
+    y_demand_true = scaler_y.inverse_transform(y_test)
+    shap_values_dict = {}
+
+    mse = mean_squared_error(y_demand_true, y_demand_pred)
+    mae = mean_absolute_error(y_demand_true, y_demand_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_demand_true, y_demand_pred)
+    modelName = "GRU"
+    results = [mse, mae, rmse, r2,modelName]
+
+    #----#
+    print('\n', "Merged GRU Model Results:")
+    print("MSE: {:.4f}".format(mse))
+    print("MAE: {:.4f}".format(mae))
+    print("RMSE: {:.4f}".format(rmse))
+    print("R2: {:.4f}".format(r2))
+   
+    if plots == True:
+
+        #-Demand Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'GRU Model: Actual vs Predicted Demand:  Hourly')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        #-Supply Plot-#
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'GRU Model: Actual vs Predicted Supply:  Hourly')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+    if features == True:
+        shap_values_dict = {}
+        explainer = shap.GradientExplainer(best_model, X_train)
+        shap_values = explainer.shap_values(X_test)
+        expanded_feature_cols = [
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+        ]
+
+        mean_shap_values = np.abs(shap_values).mean(axis=0)
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
+        mean_shap_values = mean_shap_values.flatten()
+        top_features = sorted(
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
+        for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
+            print(f"{feature:<30} {importance:.4f}")
+
+        shap_importance = {
+            f"Output_{i + 1}": sorted(
+                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+                key=lambda x: x[1],
+                reverse=True
+            )
+            for i in range(len(shap_values_dict))
+        }
+
+        for i, shap_value in enumerate(shap_values):
+            print(f"\nComputing SHAP values for output {i + 1}...")
+            mean_shap_values = np.abs(shap_values).mean(axis=0)
+            shap_values_dict[f"Output_{i + 1}"] = shap_value
+
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
+
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
+        shap_importance = {
+            f"Output_{i + 1}": sorted(
+                zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
+                key=lambda x: x[1],
+                reverse=True
+            )
+            for i in range(len(shap_values_dict))
+        }
+
+        assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+        assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
+        assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
+        mean_shap_values = np.array(mean_shap_values).flatten()
+        sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
+
+        for feature, importance in sorted_features:
+            print("{:<30} {:>12.4f}".format(feature, importance))
+        shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
+        shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
+
+        print("Expanded Feature Columns:", expanded_feature_cols)
+        feature_to_lagged_mapping = {
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
+        }
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+        
+        for feature, _ in top_features:
+            if feature in feature_to_lagged_mapping:
+                lagged_feature = feature_to_lagged_mapping[feature][0]
+                if lagged_feature in expanded_feature_cols:
+                    shap.dependence_plot(
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
+            else:
+                print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
+        else:
+            print(f"Feature {feature} not found in feature_to_lagged_mapping.")
+        return results    
+    thresholds =  [112.21, 187.74, 237.23, 313.32, 397.67]
+    generate_classification_report(y_demand_true[:, 0], y_demand_pred[:, 0], thresholds,'GRU','Demand')
+    generate_classification_report(y_demand_true[:, 1], y_demand_pred[:, 1], thresholds,'GRU','Supply')
+    return results
+
+
+def SVRModelDS(mergedDs: pd.DataFrame, plots: bool, features: bool):
+    mergedDs = mergedDs.copy()
+
+    """
+    SVR for Merged Dataset (time-series-safe):
+    - Preserve chronological order (no shuffle)
+    - Create sequences, then split (no leakage)
+    - Fit scalers on training only
+    - Use StandardScaler for X (better for RBF kernel) and MinMaxScaler for y
+    - Use TimeSeriesSplit for CV when possible, fallback to direct fit
+    - Optional SHAP explanation (best-effort, safe fallback)
+    """
+
+    # Ensure timestamp-derived columns
+    mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
+    mergedDs["day"] = mergedDs["TimeStamp"].dt.day
+    mergedDs["month"] = mergedDs["TimeStamp"].dt.month
+
+    feature_cols = [
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S", "WS10M_S", "WD10M_S",
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D", "WS10M_D", "WD10M_D", "hour", "day", "month"
+    ]
+
+    target_cols = ['Demand_MW', 'Supply_MW']
+    seq_length = 1
+
+    # Create sequence samples (this helper is used previously in the project)
+    X_seq, y_seq = create_sequence_with_time(mergedDs, feature_cols, target_cols, seq_length)
+
+    # Ensure X_seq is 2D (n_samples, n_features_flat) and y_seq is 2D (n_samples, n_outputs)
+    if X_seq.ndim > 2:
+        X_seq = X_seq.reshape(X_seq.shape[0], -1)
+    if y_seq.ndim == 1:
+        y_seq = y_seq.reshape(-1, 1)
+
+    # Time-series holdout (preserve chronological order)
+    n_total = len(X_seq)
+    if n_total < 3:
+        raise ValueError("Not enough sequence samples for SVR training/evaluation.")
+    n_test = max(1, int(n_total * 0.2))
+    n_train = n_total - n_test
+
+    X_train_raw = X_seq[:n_train]
+    y_train_raw = y_seq[:n_train]
+    X_test_raw = X_seq[n_train:]
+    y_test_raw = y_seq[n_train:]
+
+    # Fit scalers on train only (prevent leakage)
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    scaler_X = StandardScaler()
+    scaler_y = MinMaxScaler()
+
+    X_train = scaler_X.fit_transform(X_train_raw)
+    X_test = scaler_X.transform(X_test_raw)
+    y_train = scaler_y.fit_transform(y_train_raw)
+    y_test = scaler_y.transform(y_test_raw)
+
+    # Ensure 2D targets for sklearn
+    if y_train.ndim == 1:
+        y_train = y_train.reshape(-1, 1)
+    if y_test.ndim == 1:
+        y_test = y_test.reshape(-1, 1)
+
+    # Build model and grid
+    base_model = MultiOutputRegressor(SVR(kernel='rbf'))
+    param_grid = {
+        'estimator__C': [0.1, 1, 10],
+        'estimator__gamma': ['scale', 0.01],
+        'estimator__epsilon': [0.01, 0.1]
+    }
+
+    # Use TimeSeriesSplit when training samples permit
+    from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
+    try:
+        n_splits = min(3, max(2, len(X_train) // 50))  # heuristic: at least 2 splits, more if many samples
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        grid = GridSearchCV(base_model, param_grid, cv=tscv, scoring='neg_mean_squared_error', n_jobs=-1)
+        grid.fit(X_train, y_train)
+        best_model = grid.best_estimator_
+        print("Best parameters:", grid.best_params_)
+    except Exception as e:
+        # Fallback: fit without CV if something fails (small sample size, etc.)
+        print("GridSearchCV failed or insufficient data for CV, fitting base model. Reason:", e)
+        best_model = base_model
+        best_model.fit(X_train, y_train)
+
+    # Predict and inverse-transform
+    y_pred = best_model.predict(X_test)
+    if y_pred.ndim == 1:
+        y_pred = y_pred.reshape(-1, 1)
+
+    y_demand_pred = scaler_y.inverse_transform(y_pred)
+    y_demand_true = scaler_y.inverse_transform(y_test)
+
+    mse = mean_squared_error(y_demand_true, y_demand_pred)
+    mae = mean_absolute_error(y_demand_true, y_demand_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_demand_true, y_demand_pred)
+    modelName = "SVR"
+    results = [mse, mae, rmse, r2, modelName]
+
+    # Print results
+    print('\n', "Merged SVR Model Results:")
+    print("MSE: {:.4f}".format(mse))
+    print("MAE: {:.4f}".format(mae))
+    print("RMSE: {:.4f}".format(rmse))
+    print("R2: {:.4f}".format(r2))
+
+    # Plotting
+    if plots:
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 0], label='Actual Demand')
+        plt.plot(y_demand_pred[:, 0], label='Predicted Demand')
+        plt.title(f'SVR Model: Actual vs Predicted Demand:  Hourly')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(y_demand_true[:, 1], label='Actual Supply')
+        plt.plot(y_demand_pred[:, 1], label='Predicted Supply')
+        plt.title(f'SVR Model: Actual vs Predicted Supply:  Hourly')
+        plt.xlabel('Time')
+        plt.ylabel('MW')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    # Feature explanation (SHAP) - best-effort, may be slow; guarded with try/except
+    if features:
+        try:
+            import shap
+            # Use a small background subset for KernelExplainer to keep runtime reasonable
+            bg_size = min(100, len(X_train))
+            explainer = shap.KernelExplainer(lambda x: best_model.predict(x), X_train[:bg_size])
+            explain_size = min(100, len(X_test))
+            shap_values = explainer.shap_values(X_test[:explain_size])
+
+            # shap_values for multi-output: list per output (or array). Normalize into list form.
+            if isinstance(shap_values, list):
+                shap_list = shap_values
+            else:
+                # If shap_values is array (n_outputs, n_samples, n_features) attempt to split
+                shap_list = [shap_values[i] for i in range(shap_values.shape[0])]
+
+            # Build expanded feature names for plotting
+            expanded_feature_cols = [f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols]
+            # Ensure length match
+            if X_test.shape[1] != len(expanded_feature_cols):
+                # If mismatch, fallback to generic feature names
+                expanded_feature_cols = [f"f{i}" for i in range(X_test.shape[1])]
+
+            # Plot SHAP summary for each output
+            for i, sv in enumerate(shap_list):
+                try:
+                    # shap.summary_plot expects shape (n_samples, n_features)
+                    shap.summary_plot(sv, X_test[:explain_size], plot_type="bar", feature_names=expanded_feature_cols, show=False)
+                except Exception as e:
+                    print(f"SHAP plotting failed for output {i}: {e}")
+        except Exception as e:
+            print("SHAP explanation skipped due to error:", e)
+
+    # Optional classification/reporting (unchanged)
+    thresholds = [112.21, 187.74, 237.23, 313.32, 397.67]
+    generate_classification_report(y_demand_true[:, 0], y_demand_pred[:, 0], thresholds, 'SVR', 'Demand')
+    generate_classification_report(y_demand_true[:, 1], y_demand_pred[:, 1], thresholds, 'SVR', 'Supply')
+
+    return results
+def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
+    mergedDs = mergedDs.copy()
+
+    mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
+    mergedDs["day"] = mergedDs["TimeStamp"].dt.day
+    mergedDs["month"] = mergedDs["TimeStamp"].dt.month
+
+    feature_cols = [
+        "ALLSKY_SFC_SW_DWN_S", "ALLSKY_SFC_UV_INDEX_S", "T2M_S", "PRECTOTCORR_S", "ALLSKY_KT_S",
+        "CLRSKY_SFC_PAR_TOT_S", "RH2M_S", "PS_S", "PSC_S","WS10M_S","WD10M_S", 
+        "ALLSKY_SFC_SW_DWN_D", "ALLSKY_SFC_UV_INDEX_D", "T2M_D", "PRECTOTCORR_D", "ALLSKY_KT_D",
+        "CLRSKY_SFC_PAR_TOT_D", "RH2M_D", "PS_D", "PSC_D","WS10M_D","WD10M_D", "hour", "day", "month"
+    ]
+    
+    scaler_X = MinMaxScaler()
+    scaler_y = MinMaxScaler()
+    target_cols = ['Demand_MW', 'Supply_MW']
+    X = scaler_X.fit_transform(mergedDs[feature_cols])
+    y = scaler_y.fit_transform(mergedDs[target_cols])
+
+    seq_length = 1
+    X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
+
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     num_features = len(feature_cols)
     X_train = X_train.reshape((X_train.shape[0], seq_length * num_features))
+    X_val = X_val.reshape((X_val.shape[0], seq_length * num_features))
     X_test = X_test.reshape((X_test.shape[0], seq_length * num_features))
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
-
-    
   
     tuner = Hyperband(
         lambda hp: (
@@ -1715,34 +1989,30 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         directory='tuner_dir',
         project_name='mlp_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for MLP:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
 
     y_pred = best_model.predict(X_test)
 
-
-    """
-    ## Base Implementation 
-    model = Sequential([
-        Dense(128, activation='relu', input_dim=X_train.shape[1]),
-        Dropout(0.2),
-        Dense(64, activation='relu'),
-        Dropout(0.2),
-        Dense(32, activation='relu'),
-        Dense(2)
-    ])
-
-    model.compile(optimizer='adam', loss='mse')
-    model.fit(X_train, y_train, epochs=100, batch_size=16, validation_data=(X_test, y_test))
-
-    y_pred = model.predict(X_test)
-    """
     y_demand_pred = scaler_y.inverse_transform(y_pred)
     y_demand_true = scaler_y.inverse_transform(y_test)
 
-   
     mse = mean_squared_error(y_demand_true, y_demand_pred)
     mae = mean_absolute_error(y_demand_true, y_demand_pred)
     rmse = np.sqrt(mse)
@@ -1780,25 +2050,20 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         explainer = shap.GradientExplainer(best_model, X_train)
         shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
         ]
 
-
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
-        # Identify top 3 features
         top_features = sorted(
-                zip(feature_cols, mean_shap_values),
-                key=lambda x: x[1],
-                reverse=True
-            )[:3]
-        # Print feature importance for this output
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1806,26 +2071,18 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
+        }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
-
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-        # Prepare SHAP importance with adjusted SHAP values
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -1834,43 +2091,30 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             )
             for i in range(len(shap_values_dict))
         }
-        """
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        """
+
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
-    
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
-
-    
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
-        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-        for feature in feature_cols
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
         }
-        # Loop through top features
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1878,12 +2122,11 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -1898,21 +2141,6 @@ def MLPModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
 def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs = mergedDs.copy()
 
-
-    """
-    CNN for Merged Dataset -
-    MSE: 5767.0716
-    MAE: 59.7123
-    RMSE: 75.9412
-    R2: -0.8570
-    --
-    With Hyper Params - 
-    {'filters1': 32, 'kernel_size1': 2, 'dropout1': 0.5, 'filters2': 64, 'kernel_size2': 3, 'dropout2': 0.5, 'dense_units': 32, 'learning_rate': 0.001, 'tuner/epochs': 3, 'tuner/initial_epoch': 0, 'tuner/bracket': 2, 'tuner/round': 0} - Best Parms
-    MSE: 1454.0116
-    MAE: 26.8473
-    RMSE: 38.1315
-    R2: 0.7116
-    """
     mergedDs["hour"] = mergedDs["TimeStamp"].dt.hour
     mergedDs["day"] = mergedDs["TimeStamp"].dt.day
     mergedDs["month"] = mergedDs["TimeStamp"].dt.month
@@ -1932,14 +2160,13 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
 
     seq_length = 1
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
-    print(f"Shape of X_seq: {X_seq.shape}")  # Debugging output
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
-    #X_seq, y_seq = create_seasonal_sequences(mergedDs, feature_cols, target_cols, pad_to_max=True)
-    #X_seq_flat = X_seq.reshape(X_seq.shape[0], -1)
+    print(f"Shape of X_seq: {X_seq.shape}")
+
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
+
     num_features = len(feature_cols)
     X_train = X_train.reshape((-1, seq_length, num_features))
+    X_val = X_val.reshape((-1, seq_length, num_features))
     X_test = X_test.reshape((-1, seq_length, num_features))
     
     tuner = Hyperband(
@@ -1954,7 +2181,7 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         )(Sequential([
             Conv1D(
                 filters=hp.Int('filters1', 32, 128, step=32),
-                kernel_size = min(hp.Choice('kernel_size1', [2, 3, 5]), seq_length),
+                kernel_size=min(hp.Choice('kernel_size1', [2, 3, 5]), seq_length),
                 activation='relu',
                 input_shape=(seq_length, num_features)
             ),
@@ -1962,7 +2189,7 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
             Dropout(hp.Float('dropout1', 0.1, 0.5, step=0.1)),
             Conv1D(
                 filters=hp.Int('filters2', 32, 128, step=32),
-                kernel_size = min(hp.Choice('kernel_size2', [2, 3, 5]), seq_length),
+                kernel_size=min(hp.Choice('kernel_size2', [2, 3, 5]), seq_length),
                 activation='relu'
             ),
             Dropout(hp.Float('dropout2', 0.1, 0.5, step=0.1)),
@@ -1976,11 +2203,24 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         directory='tuner_dir',
         project_name='cnn_tuning'
     )
-    tuner.search(X_train, y_train, epochs=20, validation_data=(X_test, y_test), batch_size=16)
+
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=5,
+        restore_best_weights=True
+    )
+
+    tuner.search(
+        X_train,
+        y_train,
+        epochs=20,
+        validation_data=(X_val, y_val),
+        batch_size=16,
+        callbacks=[early_stopping]
+    )
     best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     print("Best hyperparameters found for CNN:", best_hp.values)
     best_model = tuner.get_best_models(num_models=1)[0]
-
 
     y_pred = best_model.predict(X_test)
     y_demand_pred = scaler_y.inverse_transform(y_pred)
@@ -2026,25 +2266,20 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         explainer = shap.GradientExplainer(best_model, X_train)
         shap_values = explainer.shap_values(X_test)
         expanded_feature_cols = [
-        f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
-    ]
+            f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
+        ]
 
-
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Example: Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
-        # Identify top 3 features
         top_features = sorted(
-                zip(feature_cols, mean_shap_values),
-                key=lambda x: x[1],
-                reverse=True
-            )[:3]
-        # Print feature importance for this output
+            zip(feature_cols, mean_shap_values),
+            key=lambda x: x[1],
+            reverse=True
+        )[:3]
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -2052,26 +2287,18 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-}
+        }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Shape: (2619, 600)
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Shape: (2619, 600, 2)
-
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Shape: (2619, 600)
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-        # Prepare SHAP importance with adjusted SHAP values
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -2079,42 +2306,32 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
                 reverse=True
             )
             for i in range(len(shap_values_dict))
-    }
-        """
-        print("Shape of X_test_flat:", X_test_flat.shape)
-        print("Shape of shap_values_flat:", shap_values_flat.shape)
-        print("Shape of shap_values_demand:", shap_values_demand.shape)
-        """
+        }
+
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], "Mismatch between expanded_feature_cols and X_test!"
 
         mean_shap_values = np.array(mean_shap_values).flatten()
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-        # Ensure compatibility
         print("Expanded Feature Columns:", expanded_feature_cols)
         feature_to_lagged_mapping = {
-        feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
-        for feature in feature_cols
-    }
-        # Loop through top features
+            feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
+            for feature in feature_cols
+        }
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_demand, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -2122,12 +2339,11 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
         
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -2137,7 +2353,6 @@ def CNNModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     generate_classification_report(y_demand_true[:, 0], y_demand_pred[:, 0], thresholds,'CNN','Demand')
     generate_classification_report(y_demand_true[:, 1], y_demand_pred[:, 1], thresholds,'CNN','Supply')    
     return results
-
 
 def GBDTModelDS(mergedDs: pd.DataFrame, plots:bool,features:bool):
     mergedDs = mergedDs.copy()
@@ -2319,9 +2534,7 @@ def NSGA2_CNN_ModelDS(
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
     num_features = len(feature_cols)
     X_seq = X_seq.reshape((-1, seq_length, num_features))
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     scaler_demand = MinMaxScaler()
     scaler_supply = MinMaxScaler()
@@ -2348,14 +2561,12 @@ def NSGA2_CNN_ModelDS(
         y_supply_pred = scaler_supply.inverse_transform(y_pred[:, 1].reshape(-1, 1))
         y_demand_true = scaler_demand.inverse_transform(y_true[:, 0].reshape(-1, 1))
         y_supply_true = scaler_supply.inverse_transform(y_true[:, 1].reshape(-1, 1))
-        # Ensure all are real
         y_demand_pred = np.real(y_demand_pred)
         y_supply_pred = np.real(y_supply_pred)
         y_demand_true = np.real(y_demand_true)
         y_supply_true = np.real(y_supply_true)
         mse_demand = mean_squared_error(y_demand_true, y_demand_pred)
         mse_supply = mean_squared_error(y_supply_true, y_supply_pred)
-        # Force to real float (in case metrics return complex)
         mse_demand = float(np.real(mse_demand))
         mse_supply = float(np.real(mse_supply))
         return mse_demand, mse_supply
@@ -2369,12 +2580,12 @@ def NSGA2_CNN_ModelDS(
             learning_rate = float(individual[4])
 
             tf.keras.backend.clear_session()
-            kernel_size1 = min(kernel_size1, seq_length)  # Ensure kernel size is valid
-            pool_size = min(2, seq_length)  # Dynamically adjust pool size
+            kernel_size1 = min(kernel_size1, seq_length)
+            pool_size = min(2, seq_length)
 
             model = Sequential([
                 Conv1D(filters=filters1, kernel_size=kernel_size1, activation='relu', input_shape=(seq_length, num_features)),
-                MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),  # Skip pooling if seq_length == 1
+                MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),
                 Dropout(dropout1),
                 Flatten(),
                 Dense(dense_units, activation='relu'),
@@ -2386,12 +2597,12 @@ def NSGA2_CNN_ModelDS(
                 X_train, y_train,
                 epochs=epochs,
                 batch_size=batch_size,
-                validation_data=(X_test, y_test),
+                validation_data=(X_val, y_val),
                 callbacks=[early_stopping],
                 verbose=0
             )
-            y_pred = model.predict(X_test, verbose=0)
-            mse_demand, mse_supply = compute_full_metrics(y_test, y_pred)
+            y_pred = model.predict(X_val, verbose=0)
+            mse_demand, mse_supply = compute_full_metrics(y_val, y_pred)
             return mse_demand, mse_supply
         except Exception as e:
             print(f"Error evaluating individual {individual}: {e}")
@@ -2437,11 +2648,11 @@ def NSGA2_CNN_ModelDS(
     filters1, kernel_size1, dropout1, dense_units, learning_rate = best
 
     tf.keras.backend.clear_session()
-    pool_size = min(2, seq_length)  # Dynamically adjust pool size
+    pool_size = min(2, seq_length)
 
     final_model = Sequential([
         Conv1D(filters=int(filters1), kernel_size=int(kernel_size1), activation='relu', input_shape=(seq_length, num_features)),
-        MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),  # Skip pooling if seq_length == 1
+        MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),
         Dropout(float(dropout1)),
         Flatten(),
         Dense(int(dense_units), activation='relu'),
@@ -2453,7 +2664,7 @@ def NSGA2_CNN_ModelDS(
         X_train, y_train,
         epochs=epochs,
         batch_size=batch_size,
-        validation_data=(X_test, y_test),
+        validation_data=(X_val, y_val),
         callbacks=[early_stopping],
         verbose=0
     )
@@ -2464,14 +2675,11 @@ def NSGA2_CNN_ModelDS(
     y_demand_true = scaler_demand.inverse_transform(y_test[:, 0].reshape(-1, 1))
     y_supply_true = scaler_supply.inverse_transform(y_test[:, 1].reshape(-1, 1))
 
-    # Ensure all are real
     y_demand_pred = np.real(y_demand_pred)
     y_supply_pred = np.real(y_supply_pred)
     y_demand_true = np.real(y_demand_true)
     y_supply_true = np.real(y_supply_true)
 
-    
-    
     all_true = np.concatenate((y_demand_true, y_supply_true), axis=0)
     all_pred = np.concatenate((y_demand_pred, y_supply_pred), axis=0)
     all_true = np.real(all_true)
@@ -2519,23 +2727,19 @@ def NSGA2_CNN_ModelDS(
             f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
         ]
 
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
 
-        # Identify top 3 features
         top_features = sorted(
             zip(feature_cols, mean_shap_values),
             key=lambda x: x[1],
             reverse=True
         )[:3]
 
-        # Print feature importance for this output
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
 
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -2545,62 +2749,47 @@ def NSGA2_CNN_ModelDS(
             for i in range(len(shap_values_dict))
         }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Flatten X_test
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Flatten SHAP values
-
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Adjust to match feature columns
-        
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
         print(f"Type of expanded_feature_cols: {type(expanded_feature_cols)}")
         print(f"Type of X_test_flat: {type(X_test_flat)}")
         print(f"Length of expanded_feature_cols: {len(expanded_feature_cols)}")
         print(f"Shape of X_test_flat: {X_test_flat.shape}")
-        # Ensure compatibility
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], (
-        f"Mismatch between expanded_feature_cols and X_test! "
-        f"expanded_feature_cols length: {len(expanded_feature_cols)}, "
-        f"X_test_flat shape[1]: {X_test_flat.shape[1]}"
+            f"Mismatch between expanded_feature_cols and X_test! "
+            f"expanded_feature_cols length: {len(expanded_feature_cols)}, "
+            f"X_test_flat shape[1]: {X_test_flat.shape[1]}"
         )
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
-            feature = str(feature)  # Ensure feature is a string
+            feature = str(feature)
             if isinstance(importance, np.ndarray):
                 if importance.size == 1:
-                    importance = importance.item()  # Extract scalar value
+                    importance = importance.item()
                 else:
-                    importance = importance.mean()  # Aggregate values (e.g., mean)
-            importance = float(importance)  # Convert to float
+                    importance = importance.mean()
+            importance = float(importance)
             print("{:<30} {:>12.4f}".format(feature, importance))
 
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
 
-     
-        # Feature-to-lagged mapping for dependence plots
         feature_to_lagged_mapping = {
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
             for feature in feature_cols
         }
 
-        # Loop through top features
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
                 lagged_feature = feature_to_lagged_mapping[feature][0]
@@ -2614,12 +2803,11 @@ def NSGA2_CNN_ModelDS(
                 print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -2635,7 +2823,7 @@ def NSGA3_CNN_ModelDS(
     mergedDs: pd.DataFrame,
     plots: bool,
     features:bool,
-       pop_size=5,
+    pop_size=5,
     ngen=3,
     cxpb=0.7,
     mutpb=0.3,
@@ -2666,9 +2854,7 @@ def NSGA3_CNN_ModelDS(
     X_seq, y_seq = create_sequences_with_time(X, y, seq_length)
     num_features = len(feature_cols)
     X_seq = X_seq.reshape((-1, seq_length, num_features))
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_seq, y_seq, test_size=0.2, shuffle=False
-    )
+    X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(X_seq, y_seq)
 
     scaler_demand = MinMaxScaler()
     scaler_supply = MinMaxScaler()
@@ -2695,14 +2881,12 @@ def NSGA3_CNN_ModelDS(
         y_supply_pred = scaler_supply.inverse_transform(y_pred[:, 1].reshape(-1, 1))
         y_demand_true = scaler_demand.inverse_transform(y_true[:, 0].reshape(-1, 1))
         y_supply_true = scaler_supply.inverse_transform(y_true[:, 1].reshape(-1, 1))
-        # Ensure all are real
         y_demand_pred = np.real(y_demand_pred)
         y_supply_pred = np.real(y_supply_pred)
         y_demand_true = np.real(y_demand_true)
         y_supply_true = np.real(y_supply_true)
         mse_demand = mean_squared_error(y_demand_true, y_demand_pred)
         mse_supply = mean_squared_error(y_supply_true, y_supply_pred)
-        # Force to real float (in case metrics return complex)
         mse_demand = float(np.real(mse_demand))
         mse_supply = float(np.real(mse_supply))
         return mse_demand, mse_supply
@@ -2716,12 +2900,12 @@ def NSGA3_CNN_ModelDS(
             learning_rate = float(individual[4])
 
             tf.keras.backend.clear_session()
-            kernel_size1 = min(kernel_size1, seq_length)  # Ensure kernel size is valid
-            pool_size = min(2, seq_length)  # Dynamically adjust pool size
+            kernel_size1 = min(kernel_size1, seq_length)
+            pool_size = min(2, seq_length)
 
             model = Sequential([
                 Conv1D(filters=filters1, kernel_size=kernel_size1, activation='relu', input_shape=(seq_length, num_features)),
-                MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),  # Skip pooling if seq_length == 1
+                MaxPooling1D(pool_size=pool_size) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),
                 Dropout(dropout1),
                 Flatten(),
                 Dense(dense_units, activation='relu'),
@@ -2733,12 +2917,12 @@ def NSGA3_CNN_ModelDS(
                 X_train, y_train,
                 epochs=epochs,
                 batch_size=batch_size,
-                validation_data=(X_test, y_test),
+                validation_data=(X_val, y_val),
                 callbacks=[early_stopping],
                 verbose=0
             )
-            y_pred = model.predict(X_test, verbose=0)
-            mse_demand, mse_supply = compute_full_metrics(y_test, y_pred)
+            y_pred = model.predict(X_val, verbose=0)
+            mse_demand, mse_supply = compute_full_metrics(y_val, y_pred)
             return mse_demand, mse_supply
         except Exception as e:
             print(f"Error evaluating individual {individual}: {e}")
@@ -2784,11 +2968,11 @@ def NSGA3_CNN_ModelDS(
     filters1, kernel_size1, dropout1, dense_units, learning_rate = best
 
     tf.keras.backend.clear_session()
-    pool_size = min(2, seq_length)  # Dynamically adjust pool size
+    pool_size = min(2, seq_length)
 
     final_model = Sequential([
         Conv1D(filters=int(filters1), kernel_size=min(int(kernel_size1), seq_length), activation='relu', input_shape=(seq_length, num_features)),
-        MaxPooling1D(pool_size=min(2, seq_length)) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),  # Skip pooling if seq_length == 1
+        MaxPooling1D(pool_size=min(2, seq_length)) if seq_length > 1 else tf.keras.layers.Lambda(lambda x: x),
         Dropout(float(dropout1)),
         Flatten(),
         Dense(int(dense_units), activation='relu'),
@@ -2800,7 +2984,7 @@ def NSGA3_CNN_ModelDS(
         X_train, y_train,
         epochs=epochs,
         batch_size=batch_size,
-        validation_data=(X_test, y_test),
+        validation_data=(X_val, y_val),
         callbacks=[early_stopping],
         verbose=0
     )
@@ -2811,14 +2995,11 @@ def NSGA3_CNN_ModelDS(
     y_demand_true = scaler_demand.inverse_transform(y_test[:, 0].reshape(-1, 1))
     y_supply_true = scaler_supply.inverse_transform(y_test[:, 1].reshape(-1, 1))
 
-    # Ensure all are real
     y_demand_pred = np.real(y_demand_pred)
     y_supply_pred = np.real(y_supply_pred)
     y_demand_true = np.real(y_demand_true)
     y_supply_true = np.real(y_supply_true)
 
-    
-    
     all_true = np.concatenate((y_demand_true, y_supply_true), axis=0)
     all_pred = np.concatenate((y_demand_pred, y_supply_pred), axis=0)
     all_true = np.real(all_true)
@@ -2866,24 +3047,18 @@ def NSGA3_CNN_ModelDS(
             f"{feature}_t-{i}" for i in range(seq_length, 0, -1) for feature in feature_cols
         ]
 
-        # Compute mean absolute SHAP values for global feature importance
         mean_shap_values = np.abs(shap_values).mean(axis=0)
-        mean_shap_values = np.mean(mean_shap_values, axis=0)  # Reduce along the first axis
+        mean_shap_values = np.mean(mean_shap_values, axis=0)
         mean_shap_values = mean_shap_values.flatten()
 
-        # Identify top 3 features
         top_features = sorted(
             zip(feature_cols, mean_shap_values),
             key=lambda x: x[1],
             reverse=True
         )[:3]
-        # Print feature importance for this output
         for feature, importance in sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True):
             print(f"{feature:<30} {importance:.4f}")
-        # Print feature importance for this output
 
-
-        # Prepare SHAP importance with adjusted SHAP values
         shap_importance = {
             f"Output_{i + 1}": sorted(
                 zip(expanded_feature_cols, np.abs(shap_values_dict[f"Output_{i + 1}"][:, :-1]).mean(axis=0).tolist()),
@@ -2893,57 +3068,44 @@ def NSGA3_CNN_ModelDS(
             for i in range(len(shap_values_dict))
         }
 
-        # Loop through each output (e.g., Demand and Supply)
         for i, shap_value in enumerate(shap_values):
             print(f"\nComputing SHAP values for output {i + 1}...")
             mean_shap_values = np.abs(shap_values).mean(axis=0)
-            # Store SHAP values in the dictionary
             shap_values_dict[f"Output_{i + 1}"] = shap_value
 
-        # Prepare SHAP values for return
-        X_test_flat = X_test.reshape(X_test.shape[0], -1)  # Flatten X_test
+        X_test_flat = X_test.reshape(X_test.shape[0], -1)
+        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])
 
-        # Adjust shap_values to match the flattened structure
-        shap_values_flat = shap_values.reshape(shap_values.shape[0], -1, shap_values.shape[-1])  # Flatten SHAP values
+        shap_values_demand = shap_values_flat[:, :, 0]
+        shap_values_supply = shap_values_flat[:, :, 1]
 
-        # Select the SHAP values for the first output (e.g., Demand)
-        shap_values_demand = shap_values_flat[:, :, 0]  # Adjust to match feature columns
-        ##Select the SHAP values for the second output (e.g., Supply)
-        shap_values_supply = shap_values_flat[:, :, 1] 
-
-        # Ensure compatibility
         assert shap_values_supply.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert shap_values_demand.shape[1] == X_test_flat.shape[1], "Mismatch between shap_values and X_test!"
         assert len(expanded_feature_cols) == X_test_flat.shape[1], (
-        f"Mismatch between expanded_feature_cols and X_test! "
-        f"expanded_feature_cols length: {len(expanded_feature_cols)}, "
-        f"X_test_flat shape[1]: {X_test_flat.shape[1]}"
+            f"Mismatch between expanded_feature_cols and X_test! "
+            f"expanded_feature_cols length: {len(expanded_feature_cols)}, "
+            f"X_test_flat shape[1]: {X_test_flat.shape[1]}"
         )
 
-        # Sort features by importance in descending order
         sorted_features = sorted(zip(feature_cols, mean_shap_values), key=lambda x: x[1], reverse=True)
 
-        # Print each feature and its importance
         for feature, importance in sorted_features:
-            feature = str(feature)  # Ensure feature is a string
+            feature = str(feature)
             if isinstance(importance, np.ndarray):
                 if importance.size == 1:
-                    importance = importance.item()  # Extract scalar value
+                    importance = importance.item()
                 else:
-                    importance = importance.mean()  # Aggregate values (e.g., mean)
-            importance = float(importance)  # Convert to float
+                    importance = importance.mean()
+            importance = float(importance)
             print("{:<30} {:>12.4f}".format(feature, importance))
-        # Plot SHAP summary for the first output
         shap.summary_plot(shap_values_demand, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         shap.summary_plot(shap_values_supply, X_test_flat, plot_type="bar", feature_names=expanded_feature_cols)
         
-        # Feature-to-lagged mapping for dependence plots
         feature_to_lagged_mapping = {
             feature: [f"{feature}_t-{i}" for i in range(seq_length, 0, -1)]
             for feature in feature_cols
         }
         
-        # Loop through top features
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
                 lagged_feature = feature_to_lagged_mapping[feature][0]
@@ -2957,12 +3119,11 @@ def NSGA3_CNN_ModelDS(
                 print(f"Feature {feature} not found in feature_to_lagged_mapping.")
         for feature, _ in top_features:
             if feature in feature_to_lagged_mapping:
-                # Use the first time-lagged version of the feature for the dependence plot
                 lagged_feature = feature_to_lagged_mapping[feature][0]
                 if lagged_feature in expanded_feature_cols:
                     shap.dependence_plot(
-                    lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
-                )
+                        lagged_feature, shap_values_supply, X_test_flat, feature_names=expanded_feature_cols
+                    )
             else:
                 print(f"Time-lagged feature {lagged_feature} not found in expanded_feature_cols.")
         else:
@@ -3058,19 +3219,20 @@ nsga2cnn,Shap_NSGA2CNN  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,True,
 nsga3cnn,Shap_NSGA3CNN = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,True,True))
 """
 
-DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,False))
-randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,False))
-xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,False))
-gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False,False))
-blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False,False))
-lstm= ensure_real_result(LSTMModelDS(sp_FullMerg,False,False))
-gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False,False))
+#DecTree = ensure_real_result(decisionTreeModelDS(sp_FullMerg,False,False))
+#randForest = ensure_real_result(randomForestModelDS(sp_FullMerg,False,False))
+#xgb  = ensure_real_result(xgbModelDS(sp_FullMerg,False,False))
+#gbdt = ensure_real_result(GBDTModelDS(sp_FullMerg,False,False))
+#blstm = ensure_real_result(biDirectionalLSTMDS(sp_FullMerg,False,False))
+#lstm= ensure_real_result(LSTMModelDS(sp_FullMerg,False,False))
+#gru  = ensure_real_result(GRUModelDS(sp_FullMerg,False,False))
 svr = ensure_real_result(SVRModelDS(sp_FullMerg,False,False))
-mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False,False))
-cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False,False))
-nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False,False))
-nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False,False))
-modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, svr,mlp, cnn, nsga2cnn, nsga3cnn]
+#mlp  = ensure_real_result(MLPModelDS(sp_FullMerg,False,False))
+#cnn  = ensure_real_result(CNNModelDS(sp_FullMerg,False,False))
+#nsga2cnn  = ensure_real_result(NSGA2_CNN_ModelDS(sp_FullMerg,False,False))
+#nsga3cnn = ensure_real_result(NSGA3_CNN_ModelDS(sp_FullMerg,False,False))
+#modelresults = [DecTree, randForest, xgb, gbdt, blstm, lstm, gru, svr,mlp, cnn, nsga2cnn, nsga3cnn]
+modelresults = [svr]
 #for feature, importance in Shap_DecTree["Sorted Feature Importance"]:
 #    print(f"{feature:<30} {importance:.4f}"
 """
@@ -3101,7 +3263,7 @@ BestResultsOrdered = BetterModelSelectionMethod(modelresults)
 print("\nModel Ranking (Best to Worst) Hourly:")
 print("{:<20} {:>12} {:>12} {:>12} {:>10}".format("Model", "MSE", "MAE", "RMSE", "R2"))
 print("-" * 70)
-for res in BestResultsOrdered:
+for res in modelresults:
     print("{:<20} {:>12.4f} {:>12.4f} {:>12.4f} {:>10.4f}".format(
         res[4], res[0], res[1], res[2], res[3]
     ))
